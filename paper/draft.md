@@ -1,7 +1,6 @@
-# Throw It a Banana: Do Word-Trained Priors Carry Skills Learned by Acting?
+# Throw It a Banana: Lexical Transfer of Physically-Acquired Competence in RL-Finetuned Language Models
 
-*Multi-turn GRPO on a small language model in a toy physical world, with
-held-out names as the probe.*
+*Do word-trained priors carry skills learned by acting?*
 
 **Status: working draft — results are preliminary (see §5). Numbers current as
 of run 2 (100 GRPO steps); run 3 (300 steps) in progress.**
@@ -59,6 +58,23 @@ meaning alone.
 ingredient produces alone: grounded competence that generalizes along semantic
 lines laid down by text. Text supplies the map of meanings; outcomes forge the
 skill; the detectable signature is skill that travels the map.
+
+**Positioning.** That language priors aid RL generalization is established
+(pretrained word embeddings transferring goal-conditioned policies,
+shower→bathtub, Hill et al. lineage / arXiv:2007.05196; entity–dynamics
+grounding from manuals, Hanjie et al. 2021; language representations for RL
+generalization, Goodger & Robinson 2021), as is grounding an LLM through
+online RL: **GLAM** (Carta et al. 2023) is the closest ancestor — it also
+tested unseen nouns, invented words, and pretrained-vs-random ablations —
+and TWOSOME and LLaRP extend the recipe. Experiment 1 below is therefore
+best read as a GLAM-style pilot on a modern decoder-only model with a
+minimal from-scratch GRPO stack. The contribution this project aims at is
+narrower and, to our knowledge, untested: a **counterbalanced causal
+demonstration that a newly reward-acquired, arbitrary dynamics binding is
+routed to unseen objects specifically through pretrained lexical
+semantics** — with instruments (misleading names, nonce floors, first-action
+probes at diagnostic states) that quantify the routing rather than
+illustrate it.
 
 ## 2. Setup
 
@@ -147,7 +163,8 @@ Three observations:
    this fruit. The diagnostics in §4 are designed to separate (a) from (b)
    from (c); until they do, +0.08 is a measurement, not a mechanism.
    Training also ended mid-acceleration — most of orange's gain arrived in
-   the final 20 steps — so run 2 bounds all effects from below.
+   the final 20 steps — so run 2 is an early snapshot of an unconverged
+   policy (which licenses no claim about what longer training yields).
 
 ## 4. Planned analyses
 
@@ -167,6 +184,10 @@ training — these determine what the numbers in §3 mean):**
   dynamics. A *decrement* on tangerine relative to base is the single most
   diagnostic outcome available: neither generic competence nor
   concentration-on-priors predicts it; only name-mediated anticipation does.
+  Interpretive note on the nonce words: blorple and quorf *cannot know their
+  secret dynamics* — their catch rates measure the generic-skill floor (and
+  their first-action distributions should be name-neutral, calibrating the
+  diagnostic's noise level), not failed transfer.
 - **Paired analysis.** Evaluation seeds are shared across all models, so
   base-vs-checkpoint comparisons should be paired per episode (McNemar)
   rather than marginal — substantially tighter at the same n.
@@ -176,15 +197,23 @@ training — these determine what the numbers in §3 mean):**
 
 **Second wave:**
 
-- **Experiment 2 — semantics that predict physics (the headline test).**
-  Train on objects whose real-world properties map to environment dynamics
-  (rock: fast and straight; feather: slow, strong drift; bubble: barely
-  falls); evaluate zero-shot on never-experienced words whose text semantics
-  alone predict behavior (anvil, brick → rock-like; leaf, petal →
-  feather-like). Correct handling of an anvil the policy has never seen can
-  only arrive through what the word means — semantic inheritance, isolated.
-  Includes a **conflict condition** (a "feather" with rock dynamics):
-  turns-of-evidence-to-override measures prior-vs-observation arbitration.
+- **Experiment 2 — counterbalanced semantic routing (the headline test).**
+  Semantic clusters ({rock, anvil, brick}, {feather, leaf, petal}) with
+  cluster→dynamics assignments made **arbitrarily and reversed across
+  matched training runs** — in half the runs, "feathers" get the fast
+  straight fall. Train on some cluster members; evaluate held-out neighbors
+  (anvil, leaf), crossed/misleading names, and nonce names, at aligned
+  diagnostic states where different dynamics demand different first actions.
+  The counterbalancing is what makes the test causal: if held-out anvil
+  inherits whatever arbitrary behavior rock was taught *in that run*, and
+  the inheritance **reverses when the assignment reverses**, no
+  corpus-physics story (anvils-are-heavy is in the text) and no
+  generic-competence story survives — the only remaining route is the
+  newly-taught binding traveling through pretrained similarity. Controls:
+  base model, and a lexical-scrambling run (shuffled name↔cluster
+  pairings). A conflict condition (misleading name, turns-of-evidence to
+  override the prior's prediction) quantifies prior-vs-observation
+  arbitration.
 - **Longer training** (run 3, 300 steps, in progress) with the collapse
   dashboard active; larger eval n for the banana–orange delta comparison;
   a first-action analysis on banana episodes (leading rightward before any

@@ -24,7 +24,11 @@ from train import SYSTEM_PROMPT, derive_segments, parse_action
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 K = 24            # sampled turn-1 completions per (fruit, position)
-POSITIONS = [(1, 3), (3, 3), (5, 3)]  # (fruit_col, basket_col): left/center/right of basket
+# ALIGNED states only (fruit directly above basket): a reactive chase policy
+# says STAY at every one of them, so any systematic lean is dynamics
+# anticipation keyed to the name — offset states would confound the lean
+# with ordinary chasing.
+POSITIONS = [(1, 1), (3, 3), (5, 5)]  # (fruit_col, basket_col)
 MAX_NEW = 80
 
 

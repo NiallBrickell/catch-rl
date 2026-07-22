@@ -196,25 +196,27 @@ run as an experiment. A stricter follow-up: invent a *nonsense* fruit ("a blorpl
 column 3…") — banana tests transfer via real-world semantics; blorple tests
 whether the behaviour generalises over the object slot itself.
 
-### Experiment 2 (planned): semantics that predict physics
+### Experiment 2 (planned): counterbalanced semantic routing
 
 The catch env's drift assignments are deliberately counterfactual — that's
 what makes the *learning* real (no corpus says apples drift left; only
 experience teaches it). But it means held-out-word transfer can't run
 through meaning: banana's dynamics are arbitrary, so a transfer result shows
 slot-generalization, not semantic inheritance. Experiment 2 closes the loop
-by making dynamics *derivable from the word*: train on **rock** (falls
-fast, straight), **feather** (slow, drifts hard), **bubble** (barely falls,
-drifts with any breeze); evaluate on never-experienced words whose text
-semantics alone predict behavior — **anvil**/**brick** (rock-like),
-**leaf**/**petal** (feather-like). The prior is the only place an anvil's
-heaviness exists, so correct zero-shot handling *must* be inheritance
-through meaning. Plus the **conflict test**: a "feather" that secretly falls
-like a rock — how many turns of contradicting observation does it take for
-the policy to abandon the prior's prediction? Prior-vs-evidence arbitration,
-measured in a toy. Design principle throughout: the *binding being learned*
-sits outside the prior; the *transfer cue* sits inside it. Both ingredients,
-or the experiment tests nothing.
+with **semantic clusters under counterbalanced arbitrary dynamics**: take
+{rock, anvil, brick} and {feather, leaf, petal}, assign each cluster's
+dynamics *arbitrarily*, and **reverse the assignment in matched runs** — in
+half the runs, "feathers" fall fast and straight. Train on some members
+(rock, feather); evaluate held-out neighbors (anvil, leaf), crossed
+misleading names, and nonce names, at aligned states where different
+dynamics demand different first actions. The counterbalancing is the causal
+teeth: if anvil inherits whatever rock was taught *in that run*, and the
+inheritance flips when the assignment flips, neither corpus physics
+("anvils are heavy" is in the text) nor generic competence can explain it —
+only the newly-taught binding traveling through pretrained similarity.
+Design principle throughout: the *binding being learned* sits outside the
+prior; the *transfer cue* sits inside it. Both ingredients, or the
+experiment tests nothing.
 
 Other cheap experiments once the loop works:
 - **Is the CoT load-bearing?** Retrain (or just eval) with thinking forbidden —
