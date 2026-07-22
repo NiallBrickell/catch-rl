@@ -13,7 +13,7 @@ Usage:
   uv run python train.py --eval [ckpt_dir]  # greedy eval (base model if no dir)
 """
 
-import argparse, json, os, random, re, time
+import argparse, gc, json, os, random, re, time
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -33,6 +33,15 @@ LEFT moves your basket one column toward 0, RIGHT one column toward 6."""
 
 ACTION_RE = re.compile(r"ACTION:\s*(LEFT|RIGHT|STAY)")
 MICRO = 2  # episodes per training forward; bounds the logits tensor (~150k vocab)
+
+
+def bucket(n, size=128):
+    """Round a padded length up to a fixed bucket. The MPS caching allocator
+    keeps a cached buffer per distinct tensor shape it has ever served; with
+    naturally varying sequence lengths every step allocates fresh ~GB-scale
+    logits buffers and the cache grows without bound (run 1 hit 42GB by step
+    40). Bucketing makes shapes repeat so buffers get reused."""
+    return -(-n // size) * size
 
 
 # ---------------------------------------------------------------------------
@@ -87,7 +96,7 @@ def rollout(model, tok, seg, episodes, device, greedy=False, max_new=80):
     eos_ids = {seg["im_end"], tok.eos_token_id}
     n_gen, t0 = 0, time.time()
     for _ in range(TURNS):
-        maxlen = max(len(e["ids"]) for e in episodes)
+        maxlen = bucket(max(len(e["ids"]) for e in episodes))
         input_ids = torch.full((len(episodes), maxlen), tok.pad_token_id, dtype=torch.long)
         attn = torch.zeros((len(episodes), maxlen), dtype=torch.long)
         for i, e in enumerate(episodes):
@@ -159,7 +168,7 @@ def batched_logprobs(tok, model, episodes, device, grad):
     actually in the sequence. logits[:, t] scores token t+1, hence the shift;
     the returned mask is likewise shifted so it selects predictions OF
     generated tokens (this off-by-one is a classic silent bug)."""
-    maxlen = max(len(e["ids"]) for e in episodes)
+    maxlen = bucket(max(len(e["ids"]) for e in episodes))
     ids = torch.full((len(episodes), maxlen), tok.pad_token_id, dtype=torch.long)
     attn = torch.zeros_like(ids)
     gmask = torch.zeros((len(episodes), maxlen), dtype=torch.bool)
@@ -288,10 +297,13 @@ def main():
                **stats,
                "gen_tokens_per_ep": gstats["gen_tokens"] / len(episodes),
                "gen_tok_per_s": gstats["gen_tokens"] / gstats["gen_time"],
-               "step_seconds": time.time() - t0}
+               "step_seconds": time.time() - t0,
+               "mem_gb": torch.mps.driver_allocated_memory() / 2**30
+                         if device == "mps" else 0.0}
         print(f"step {step:4d} | reward {rec['reward']:.3f} | loss {rec['loss']:+.4f} | "
               f"kl {rec['kl']:.4f} | zero-var {rec['frac_zero_var_groups']:.2f} | "
-              f"gen tok/ep {rec['gen_tokens_per_ep']:.0f} | {rec['step_seconds']:.1f}s")
+              f"gen tok/ep {rec['gen_tokens_per_ep']:.0f} | mem {rec['mem_gb']:.1f}G | "
+              f"{rec['step_seconds']:.1f}s")
         with open("runs/log.jsonl", "a") as f:
             f.write(json.dumps(rec) + "\n")
         if step % 10 == 0:  # eyeball a full transcript now and then
@@ -299,8 +311,12 @@ def main():
             print(tok.decode(episodes[0]["ids"]))
             print(f"--- reward {episodes[0]['reward']} " + "-" * 40)
         if step % 20 == 0:
-            model.save_pretrained("runs/ckpt")
-            tok.save_pretrained("runs/ckpt")
+            ckpt = f"runs/ckpt-{step:04d}"  # keep every checkpoint: the erosion
+            model.save_pretrained(ckpt)     # curve needs the whole trajectory
+            tok.save_pretrained(ckpt)
+        if device == "mps":  # release cached buffers the bucketing didn't dedupe
+            gc.collect()
+            torch.mps.empty_cache()
 
 
 if __name__ == "__main__":

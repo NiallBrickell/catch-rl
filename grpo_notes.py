@@ -48,8 +48,7 @@ with app.setup:
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     # Policy gradients → GRPO, from first principles
 
     These are working notes for `train.py` in this repo: a hand-rolled multi-turn GRPO
@@ -58,15 +57,13 @@ def _():
     math, and that each piece is small enough to *play with*. Every section below is a
     derivation followed by a live demo — the sliders re-run everything downstream of
     them, so drag things and watch.
-    """
-    )
+    """)
     return
 
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 1 · The problem: maximize \( \mathbb{E}[R] \) when \( R \) is a black box
 
     We have a policy \( \pi_\theta \) that emits trajectories \( \tau \) (for us: five turns
@@ -111,8 +108,7 @@ def _():
 
     Arm rewards below are \( 0.2, 0.5, 0.8 \) (plus noise). Watch probability mass migrate to
     the best arm as you grant it more updates.
-    """
-    )
+    """)
     return
 
 
@@ -171,8 +167,7 @@ def _(s1_lr, s1_steps):
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 2 · Variance, and why baselines are free
 
     The estimator \( R \, \nabla \log \pi \) is unbiased but can be atrociously noisy, and the
@@ -199,8 +194,7 @@ def _():
     line is the true expected gradient — it does **not move**, no matter what you do to the
     slider; only the spread around it breathes. Right: the standard deviation as a function of
     \( b \), minimized almost exactly at \( b = \mathbb{E}[R] = 0.9 \).
-    """
-    )
+    """)
     return
 
 
@@ -277,8 +271,7 @@ def _(s2_b):
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 3 · GRPO: the critic replaced by sampling
 
     So the baseline should approximate "how well do I usually do *from this state*" —
@@ -300,8 +293,7 @@ def _():
     With a binary reward this estimator has one sharp edge. If the whole group succeeds or the
     whole group fails, every \( A_i = 0 \) and the batch contributes **exactly zero gradient**.
     The probability of that, for success rate \( p \), is \( p^G + (1-p)^G \) — plotted below.
-    """
-    )
+    """)
     return
 
 
@@ -388,8 +380,7 @@ def _():
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     ### 3b · Dr.GRPO: why we do *not* divide by the group std
 
     The original GRPO paper normalizes the advantage: \( A_i = (r_i - \bar r) / \sigma_{\text{group}} \).
@@ -401,8 +392,7 @@ def _():
     from them; the division instead **manufactures huge updates out of noise**, and biases
     training toward exactly the states where the policy has already made up its mind. Drag σ
     toward zero and watch the two curves disagree about physics.
-    """
-    )
+    """)
     return
 
 
@@ -447,21 +437,18 @@ def _(s3_sigma):
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     The blue curve is honest: signal shrinks as the group's outcomes converge, exactly as it
     should. The orange curve is flat — a group that is 99.9% decided gets the same gradient
     heft as a genuinely informative 50/50 group. This is why `train.py` uses
     **mean-subtraction only**: \( A_i = r_i - \bar r \), no denominator.
-    """
-    )
+    """)
     return
 
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 4 · From trajectories to tokens: why the mask is math, not bookkeeping
 
     For an LLM agent, a "trajectory" is a transcript: the model's tokens interleaved with the
@@ -477,8 +464,7 @@ def _():
     orange (the model sampled them, including its own end-of-turn token); everything blue was
     written by the environment or the chat template. Flip the toggle to see what the loss
     becomes if you get the mask wrong.
-    """
-    )
+    """)
     return
 
 
@@ -556,8 +542,7 @@ def _(s4_leak):
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 5 · Where PPO's clip went
 
     PPO's famous objective looks nothing like what we've built so far:
@@ -576,8 +561,7 @@ def _():
     interval that contains 1, the `min` is a tie — and the entire apparatus collapses to
     \( \mathbb{E}[A \log \pi] \)'s gradient: plain REINFORCE with a baseline. Most of the
     notational fog around GRPO evaporates once you see where you sit on this plot.
-    """
-    )
+    """)
     return
 
 
@@ -617,8 +601,7 @@ def _(s5_eps):
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 6 · The KL leash
 
     The full loss carries one more term: \( \beta \, \mathrm{KL}(\pi_\theta \,\|\, \pi_{\text{ref}}) \),
@@ -652,8 +635,7 @@ def _():
     the prior is the mechanism by which "banana" inherits behavior from "orange". Destroy the
     prior and you've won the toy task while losing the experiment. The KL term is literally
     "stay a language model while you learn."
-    """
-    )
+    """)
     return
 
 
@@ -732,21 +714,18 @@ def _(s6_n, s6_shift, s6_temp):
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     Watch the bands as the policy drifts from the reference (T away from 1, or crank the
     shift): \( k_1 \)'s band balloons and dips below zero — a *negative* KL estimate for a
     divergence — while \( k_3 \) hugs the dashed truth with a fraction of the spread and never
     goes negative. Shrink \( n \) to make the contrast brutal. `train.py` uses \( k_3 \).
-    """
-    )
+    """)
     return
 
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 7 · Capstone: the identical algorithm, learning to catch
 
     Everything above, assembled: REINFORCE with a group-mean baseline — *exactly* the section-3
@@ -762,8 +741,7 @@ def _():
     Try: baseline off (watch learning get noisier and slower — section 2 live), shaped reward
     on (partial credit \( -0.1 \cdot |\text{fruit} - \text{basket}| \) at the end — the
     zero-variance escape hatch from section 3), tiny G vs big G.
-    """
-    )
+    """)
     return
 
 
@@ -948,8 +926,7 @@ def _(s7_G, s7_baseline, s7_shaped, s7_steps):
 
 @app.cell
 def _():
-    mo.md(
-        r"""
+    mo.md(r"""
     ## 8 · Coda: mapping the notebook onto `train.py`
 
     | notebook section | the line(s) of `train.py` it explains |
@@ -983,8 +960,7 @@ def _():
        stray KL sign, an un-detached value — and it was silently steering every "real" run too.
 
     Both take five minutes. Both catch real bugs in hand-rolled RL loops (this repo's ancestors.
-    """
-    )
+    """)
     return
 
 

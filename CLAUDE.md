@@ -21,9 +21,9 @@ hypothesis and predictions in detail.
 ```bash
 uv run python catch_env.py            # env self-test: scripted-policy catch rates
 uv run python train.py --check-mask   # verify the gradient mask is exact
-uv run python train.py --steps 100    # train (logs → runs/log.jsonl, ckpt → runs/ckpt every 20 steps)
+uv run python train.py --steps 100    # train (logs → runs/log.jsonl, ckpt → runs/ckpt-NNNN every 20 steps)
 uv run python train.py --eval         # greedy catch-rate table incl. banana (base model)
-uv run python train.py --eval runs/ckpt   # same, from a checkpoint
+uv run python train.py --eval runs/ckpt-0100   # same, from a checkpoint
 ```
 
 There is no test suite or linter; `--check-mask` and the env self-test are the
