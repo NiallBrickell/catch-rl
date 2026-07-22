@@ -107,3 +107,11 @@ every 10 steps — read them for parser-hacking/degenerate outputs.
   prompt, eval on novel descriptions — the real-physics transfer experiment.
 - Bigger runs (Qwen3-1.7B+, LoRA): the M4 Max studio on the local network,
   `ssh studio`.
+- **Write-up (TODO, once results exist):** an arXiv-style paper (PDF via
+  mdprint/LaTeX — typeset properly; typography is part of the deliverable) plus an
+  interactive distill.pub-style HTML version. Core figures: per-fruit learning
+  curves, the banana-vs-orange delta-from-base bars, the checkpoint erosion
+  curve (behavioral + KL-from-base overlaid, per RL's Razor), sample
+  transcripts before/after, and phase-2 internals plots (fruit-token geometry
+  across checkpoints, patching results). All figure data comes from
+  `runs/log.jsonl` + checkpoint evals — keep those logs.
