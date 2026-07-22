@@ -10,6 +10,9 @@ to act in a (toy) physical world, does the language prior carry? Concretely —
 train it to catch strawberries, apples, and oranges, then throw it a **banana**
 (a word it never saw during RL) and see if it catches that too.
 
+📄 **[Working paper draft](paper/draft.md)** — hypothesis, method, current
+results, and planned analyses in one place.
+
 ## The hypothesis
 
 **Text alone yields knowledge without competence — the base model, evaluated
