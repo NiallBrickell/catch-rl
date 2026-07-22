@@ -1,6 +1,7 @@
-# Throw It a Banana: Lexical Transfer of Physically-Acquired Competence in RL-Finetuned Language Models
+# Throw It a Banana: Do Word-Trained Priors Carry Skills Learned by Acting?
 
-*Do language priors carry embodied skill to words never trained?*
+*Multi-turn GRPO on a small language model in a toy physical world, with
+held-out names as the probe.*
 
 **Status: working draft — results are preliminary (see §5). Numbers current as
 of run 2 (100 GRPO steps); run 3 (300 steps) in progress.**
@@ -158,7 +159,7 @@ training — these determine what the numbers in §3 mean):**
   identical positions is name-conditioned anticipation. Preemptive rightward
   lean for orange (and banana, blorple) but not apple (and quorf) is direct
   evidence the policy uses the word; identical distributions across names
-  means the policy is reactive and lexical transfer is impossible in
+  means the policy is reactive and name-mediated transfer is impossible in
   principle — turning a null banana result from ambiguous into explained.
 - **The holdout battery** (evaluated on existing checkpoints): banana (real,
   matched), plum (real, neutral), blorple/quorf (nonce, matched/opposed),

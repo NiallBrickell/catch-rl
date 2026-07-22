@@ -250,7 +250,7 @@ fine-tunes). Ranked by evidence-per-effort:
    diffing (which matrices moved, when).
 
 No published precedent exists for this package (mechanistic diff of a
-multi-turn GRPO policy + held-out lexical-transfer probe) as of July 2026.
+multi-turn GRPO policy + held-out novel-word transfer probe) as of July 2026.
 
 ## Notebooks
 
