@@ -1,5 +1,7 @@
 # Throw It a Banana: Lexical Transfer of Physically-Acquired Competence in RL-Finetuned Language Models
 
+*Do language priors carry embodied skill to words never trained?*
+
 **Status: working draft — results are preliminary (see §5). Numbers current as
 of run 2 (100 GRPO steps); run 3 (300 steps) in progress.**
 
@@ -162,6 +164,10 @@ teaches a language-shaped policy a sensorimotor regularity, the language
 prior is the medium through which that regularity generalizes to novel
 descriptions. The experiment is designed so that either answer — transfer or
 slot-filling — is a result.
+
+A stronger title — *Language Is All You Need to Catch* — sits in a drawer,
+reserved for the day P1 clears significance. Titles, like claims, should be
+earned.
 
 ## References
 

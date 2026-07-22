@@ -274,15 +274,44 @@ policy (apple, the left-drifter, ≈0 — rightward prior?); the banana-vs-orang
 gap is ~1σ at n=30, i.e. noise until proven otherwise. P1 is a delta-from-base
 measurement, and real evals need n ≥ 100.
 
-## Running it
+## Getting started
+
+Requirements: [uv](https://docs.astral.sh/uv/) and a machine with ≥24GB of
+RAM — Apple Silicon (MPS) is the tested path; CPU works but is slow. The
+first training/eval run downloads Qwen3-0.6B (~1.5GB) from HuggingFace.
 
 ```bash
-uv run python catch_env.py            # env self-test: scripted-policy catch rates
-uv run python train.py --check-mask   # verify the gradient mask is exact
-uv run python train.py --steps 100    # train (logs → runs/log.jsonl)
-uv run python train.py --eval         # greedy catch-rate table, incl. banana
-uv run python train.py --eval runs/ckpt-0100 --eval-n 100   # eval a checkpoint properly
+git clone https://github.com/NiallBrickell/catch-rl && cd catch-rl
+uv sync                               # installs Python 3.12 + torch + transformers + marimo
 ```
+
+**Notebooks** (each opens in the browser; no GPU needed):
+
+```bash
+uv run marimo edit math_refresher.py  # the math: derivatives → score-function trick
+uv run marimo edit ml_primer.py       # core ML: backprop → attention → LM-as-classifier
+uv run marimo edit grpo_notes.py      # the RL: REINFORCE → GRPO, capstone learns catch live
+```
+
+**Sanity checks** (run these before believing anything else):
+
+```bash
+uv run python catch_env.py            # env self-test: scripted-policy catch rates (~0.95)
+uv run python train.py --check-mask   # verify the gradient mask reconstructs generated text
+```
+
+**Train and evaluate:**
+
+```bash
+uv run python train.py --steps 100 --group-size 8   # ~1-1.5h on an M4-class GPU
+uv run python train.py --eval --eval-n 100          # base model catch-rate table (the control)
+uv run python train.py --eval runs/ckpt-0100 --eval-n 100   # a checkpoint, incl. held-out banana
+```
+
+Training prints one line per step (reward, `rstd`, `ent`, `gnorm`, KL,
+dead-group fraction, tokens/episode — see *Things to watch in the logs*) and
+appends JSON to `runs/log.jsonl`; checkpoints land in `runs/ckpt-NNNN` every
+20 steps, one per point on the erosion curve.
 
 Hardware notes: Qwen3-0.6B full-finetunes comfortably in 24GB on MPS (weights
 + grads + Adam moments + a frozen reference copy ≈ 8–9GB before activations;
