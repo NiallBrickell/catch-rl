@@ -241,11 +241,12 @@ def grpo_step(model, ref, opt, tok, episodes, kl_coef, device):
             "grad_norm": float(gnorm)}
 
 
-def evaluate(model, tok, seg, device, n=30):
+def evaluate(model, tok, seg, device, n=30, batch=50):
     print(f"greedy eval, {n} episodes per fruit:")
     for fruit in EVAL_FRUITS:  # banana never appears in training
         eps = [new_episode(tok, seg, fruit, 10_000 + i, 0) for i in range(n)]
-        rollout(model, tok, seg, eps, device, greedy=True)
+        for k in range(0, n, batch):  # chunk: n rows at once would blow the KV cache
+            rollout(model, tok, seg, eps[k:k + batch], device, greedy=True)
         rate = sum(e["reward"] for e in eps) / n
         tag = " (held out)" if fruit not in TRAIN_FRUITS else ""
         print(f"  {fruit:10s} {rate:5.2f}{tag}")
@@ -268,6 +269,8 @@ def main():
     ap.add_argument("--eval", nargs="?", const="", default=None,
                     help="greedy eval; optional checkpoint dir (default: --model)")
     ap.add_argument("--check-mask", action="store_true")
+    ap.add_argument("--eval-n", type=int, default=30,
+                    help="episodes per fruit in --eval (100+ for real claims)")
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
@@ -291,7 +294,7 @@ def main():
     if args.check_mask:
         return check_mask(model, tok, seg, device)
     if args.eval is not None:
-        return evaluate(model, tok, seg, device)
+        return evaluate(model, tok, seg, device, n=args.eval_n)
 
     ref = AutoModelForCausalLM.from_pretrained(args.ref_model or args.model,
                                                dtype=dtype).to(device)
