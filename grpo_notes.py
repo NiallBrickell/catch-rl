@@ -184,6 +184,7 @@ def _():
 
     Probabilities always sum to one, so the gradient of their sum is zero — which means we can
     subtract **any** action-independent baseline from the reward without biasing the gradient.
+    (Hold on to that proviso — *action-independent* — because section 3 nearly trips over it.)
     It changes only the *variance* of the estimate. The centered quantity
     \( A = R - b \) is the **advantage**: not "was this good?" but "was this **better than my
     usual**?" — and crucially its *sign* now drives the direction of the update. Score above the
@@ -284,15 +285,30 @@ def _():
     \[ A_i \;=\; r_i \;-\; \frac{1}{G} \sum_{j=1}^{G} r_j . \]
 
     Caught it in 4 of 6 tries → the successes get \( A = +\tfrac{1}{3} \), the failures
-    \( -\tfrac{2}{3} \). No critic, and the baseline is exact-by-construction *for that state* —
+    \( -\tfrac{2}{3} \). No critic, and the baseline is *measured at exactly the right state* —
     which is precisely why the \( G \) rollouts **must share an identical initial state** (same
     fruit, same starting columns; in the repo, same seed). Mix states within a group and the
     baseline conflates "this was an easy episode" with "the policy played well": a mediocre
     rollout on an easy start would steal advantage from a brilliant rollout on a hard one.
 
-    With a binary reward this estimator has one sharp edge. If the whole group succeeds or the
-    whole group fails, every \( A_i = 0 \) and the batch contributes **exactly zero gradient**.
-    The probability of that, for success rate \( p \), is \( p^G + (1-p)^G \) — plotted below.
+    **Fine print (a real 7/8).** Section 2's proof required \( b \) to be independent of the
+    sample it multiplies — and the plain group mean is not, because \( \bar r \) contains
+    \( r_i \) itself. One line of algebra shows what the self-contamination costs:
+
+    \[ r_i - \bar r \;=\; \tfrac{G-1}{G} \left( r_i - \bar r_{-i} \right),
+       \qquad \bar r_{-i} = \tfrac{1}{G-1} \textstyle\sum_{j \neq i} r_j . \]
+
+    So the naive version doesn't bias the gradient's *direction* — it silently rescales the
+    expected gradient by \( (G-1)/G \) (at \( G = 8 \), a harmless-but-real 7/8, absorbable
+    into the learning rate but not "exact"). The clean fix is the **leave-one-out baseline**:
+    \( A_i = r_i - \bar r_{-i} \), each rollout judged against its *siblings'* mean only.
+    That baseline never sees rollout \( i \)'s own reward, so it is action-independent and
+    section 2's proof applies verbatim. `train.py` and the capstone below both use it.
+
+    With a binary reward either estimator has one sharp edge. If the whole group succeeds or
+    the whole group fails, every \( A_i = 0 \) and the batch contributes **exactly zero
+    gradient**. The probability of that, for success rate \( p \), is \( p^G + (1-p)^G \) —
+    plotted below.
     """)
     return
 
@@ -314,7 +330,7 @@ def _(s3_G, s3_p, s3_resample):
     _rng = np.random.default_rng(1000 + s3_resample.value)
     _G = s3_G.value
     _r = (_rng.random(_G) < s3_p.value).astype(float)
-    _A = _r - _r.mean()
+    _A = _r - (_r.sum() - _r) / (_G - 1)  # leave-one-out advantage
 
     _fig, (_axl, _axr) = plt.subplots(
         1, 2, figsize=(9.5, 3.5), layout="constrained", width_ratios=[1, 1.25]
@@ -325,7 +341,7 @@ def _(s3_G, s3_p, s3_resample):
     _zero = np.all(_r == _r[0])
     _axl.set(
         xlabel="rollout i in group",
-        ylabel="advantage Aᵢ",
+        ylabel="advantage Aᵢ (leave-one-out)",
         ylim=(-1.05, 1.05),
         title=(
             f"{int(_r.sum())}/{_G} caught → "
@@ -422,7 +438,7 @@ def _(s3_sigma):
     _norm_here = (np.abs(_As) / (_rs.std(1, keepdims=True) + 1e-4)).mean()
 
     _fig, _ax = plt.subplots(figsize=(8.5, 3.5), layout="constrained")
-    _ax.loglog(_sigmas, _raw, color=C_BLUE, lw=2.2, label="mean |A|  (mean-subtraction only)")
+    _ax.loglog(_sigmas, _raw, color=C_BLUE, lw=2.2, label="mean |A|  (no std division)")
     _ax.loglog(_sigmas, _norm, color=C_ORANGE, lw=2.2, label="mean |A/σ̂|  (GRPO's std-division)")
     _ax.axvline(s3_sigma.value, color=C_MUTED, ls=":", lw=1.2)
     _ax.set(
@@ -441,7 +457,7 @@ def _():
     The blue curve is honest: signal shrinks as the group's outcomes converge, exactly as it
     should. The orange curve is flat — a group that is 99.9% decided gets the same gradient
     heft as a genuinely informative 50/50 group. This is why `train.py` uses
-    **mean-subtraction only**: \( A_i = r_i - \bar r \), no denominator.
+    **baseline-subtraction only**: \( A_i = r_i - \bar r_{-i} \), no denominator.
     """)
     return
 
@@ -728,8 +744,9 @@ def _():
     mo.md(r"""
     ## 7 · Capstone: the identical algorithm, learning to catch
 
-    Everything above, assembled: REINFORCE with a group-mean baseline — *exactly* the section-3
-    loss, \( A_i = r_i - \bar r \), no std division, no clip (section 5 says it's a no-op
+    Everything above, assembled: REINFORCE with a group baseline — *exactly* the section-3
+    loss, \( A_i = r_i - \bar r_{-i} \) (leave-one-out, per the fine print), no std division,
+    no clip (section 5 says it's a no-op
     on-policy), and here no KL because there's no prior worth protecting in a randomly
     initialized 300-parameter net. The environment is an inline numpy mirror of
     `catch_env.py`: 7 columns, the fruit falls for 5 turns, drift after the fall on turns 2 and
@@ -837,8 +854,8 @@ def catch_eval(params, n_eps=300, seed=123):
 
 @app.function
 def catch_train(G=8, steps=1000, lr=0.15, use_baseline=True, shaped=False, seed=0, eval_every=25):
-    """The section-3 loss, verbatim: group rollouts on a shared seed,
-    A = r − mean(r_group), ascend  Σ A_i ∇log π  — nothing else."""
+    """The section-3 loss, verbatim: group rollouts on a shared seed, leave-one-out
+    advantage A_i = r_i − mean(siblings' r), ascend  Σ A_i ∇log π  — nothing else."""
     params = catch_init_params(seed)
     rng = np.random.default_rng(seed + 1)
     xs, curves = [], []
@@ -851,7 +868,10 @@ def catch_train(G=8, steps=1000, lr=0.15, use_baseline=True, shaped=False, seed=
         fruit_idx = step % 3
         ep_seed = int(rng.integers(1 << 30))
         tape, rewards = catch_rollout_group(params, fruit_idx, ep_seed, G, rng, shaped)
-        adv = rewards - rewards.mean() if use_baseline else rewards.copy()
+        if use_baseline:  # leave-one-out: baseline for rollout i = mean of its siblings
+            adv = rewards - (rewards.sum() - rewards) / (G - 1)
+        else:
+            adv = rewards.copy()
         grads = catch_policy_gradient(params, tape, adv)
         for k in params:
             params[k] += lr * grads[k] / G
@@ -862,7 +882,7 @@ def catch_train(G=8, steps=1000, lr=0.15, use_baseline=True, shaped=False, seed=
 def _():
     s7_G = mo.ui.slider(2, 32, step=1, value=8, label="group size G")
     s7_steps = mo.ui.slider(100, 2000, step=100, value=1000, label="training steps")
-    s7_baseline = mo.ui.switch(value=True, label="group-mean baseline")
+    s7_baseline = mo.ui.switch(value=True, label="leave-one-out group baseline")
     s7_shaped = mo.ui.switch(value=False, label="shaped reward (−0.1·|distance|)")
     mo.hstack([s7_G, s7_steps, s7_baseline, s7_shaped], justify="start", gap=1.5)
     return s7_G, s7_baseline, s7_shaped, s7_steps
@@ -910,7 +930,7 @@ def _(s7_G, s7_baseline, s7_shaped, s7_steps):
             mo.md(
                 r"""
     **This is the identical algorithm `train.py` runs on Qwen3-0.6B.** Line for line: group
-    rollouts from a shared initial state, mean-subtracted advantage, \( -\sum_i A_i \log
+    rollouts from a shared initial state, leave-one-out sibling-mean advantage, \( -\sum_i A_i \log
     \pi_\theta(\text{what } i \text{ did}) \), one fresh update per batch. The only differences
     are that the policy is a 600M-parameter transformer instead of a 300-parameter numpy net,
     an "action" is a whole sampled token sequence (so the log-prob is a masked sum over
@@ -932,9 +952,9 @@ def _():
     | notebook section | the line(s) of `train.py` it explains |
     |---|---|
     | 1 · score-function trick | the loss itself: `-(A * logprobs).sum()` — reward appears only as a multiplier on log-probs re-computed with grad |
-    | 2 · baselines are free | `advantage = reward - rewards.mean()` — unbiased by \( \nabla \int \pi = 0 \), there purely for variance |
+    | 2 · baselines are free | the leave-one-out advantage `A[i] = r[i] - siblings.mean()` — unbiased by \( \nabla \int \pi = 0 \) *because* the baseline excludes rollout i's own reward (section 3's fine print), there purely for variance |
     | 3 · group baseline | the `G` rollouts of the same `(fruit, seed)` episode per step; `frac_zero_var_groups` in the logs is the \( p^G + (1-p)^G \) failure mode made observable |
-    | 3b · Dr.GRPO | the *absence* of `/ rewards.std()` — mean-subtraction only |
+    | 3b · Dr.GRPO | the *absence* of `/ rewards.std()` — subtract a baseline, divide by nothing |
     | 4 · the mask | the boolean mask carried beside token ids; `--check-mask` verifies the masked positions decode to exactly what the model generated |
     | 5 · no clip | the *absence* of an importance ratio: one update per fresh batch ⇒ \( \rho \equiv 1 \) |
     | 6 · KL leash | the \( \beta \cdot k_3 \) penalty against the frozen reference copy |
