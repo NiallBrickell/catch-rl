@@ -258,7 +258,13 @@ def main():
     ap.add_argument("--group-size", type=int, default=6)
     ap.add_argument("--lr", type=float, default=2e-6)
     ap.add_argument("--kl", type=float, default=0.02)
-    ap.add_argument("--model", default="Qwen/Qwen3-0.6B")
+    ap.add_argument("--model", default="Qwen/Qwen3-0.6B",
+                    help="policy init: base model or a runs/ckpt-NNNN to resume from")
+    ap.add_argument("--ref-model", default=None,
+                    help="KL reference (default: --model). When resuming from a "
+                         "checkpoint, pass the BASE model here or the KL leash "
+                         "re-anchors to the checkpoint and the KL-from-base "
+                         "erosion measurements stop meaning anything")
     ap.add_argument("--eval", nargs="?", const="", default=None,
                     help="greedy eval; optional checkpoint dir (default: --model)")
     ap.add_argument("--check-mask", action="store_true")
@@ -287,7 +293,8 @@ def main():
     if args.eval is not None:
         return evaluate(model, tok, seg, device)
 
-    ref = AutoModelForCausalLM.from_pretrained(args.model, dtype=dtype).to(device)
+    ref = AutoModelForCausalLM.from_pretrained(args.ref_model or args.model,
+                                               dtype=dtype).to(device)
     ref.requires_grad_(False)
     ref.eval()
     opt = torch.optim.AdamW(model.parameters(), lr=args.lr)
