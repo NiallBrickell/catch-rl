@@ -29,8 +29,11 @@ experience generalize.
 
 Predictions, in decreasing order of comfort:
 
-- **P1 — transfer.** Post-RL, catch-rate(banana) ≈ catch-rate(orange) ≫ base
-  model, despite "banana" never appearing in an RL episode. Mechanism: the
+- **P1 — transfer.** Post-RL, banana's improvement over its own base rate
+  tracks orange's (Δbanana ≈ Δorange > 0), despite "banana" never appearing
+  in an RL episode. (Delta-from-base, not raw rates: the fruits start from
+  different base catch rates, so raw-rate comparisons conflate prior bias
+  with transfer.) Mechanism: the
   token "banana" already sits near "orange" in representation space *because
   of text alone*; RL writes drift-competence into features the novel word
   already indexes. This is associative learning riding the prior.
@@ -138,6 +141,21 @@ The KL term is literally "stay a language model while you learn the task."
 
 ## Things to watch in the logs
 
+Ordered roughly by how early each one warns (per RAGEN's collapse anatomy —
+the mean reward is the *last* thing to move):
+
+- **`rstd`** (within-group reward std) — the earliest indicator: the spread
+  of outcomes dies before the mean does. Zero `rstd` at ceiling reward is
+  victory; zero `rstd` below ceiling is premature convergence — a corpse
+  that still moves.
+- **`ent`** (Monte-Carlo entropy: mean −logp of the sampled tokens, free
+  since the loss already computes those logprobs) — falling is normal
+  (learning *is* spending entropy); falling fast while reward stays flat
+  means the exploration budget is buying nothing.
+- **`gnorm`** (pre-clip gradient norm) — spikes arrive late: ∇log π = ∇π/π
+  divides by the sampled token's probability, so once the distribution is
+  nearly deterministic, rare tokens detonate the batch gradient. By then
+  recovery usually means reloading a checkpoint.
 - **`frac_zero_var_groups`** — with a binary reward, a group that's all-0 or
   all-1 has zero advantage everywhere: *no learning signal at all*. Early on
   (policy nearly always misses) this is the practical failure mode of sparse
@@ -207,7 +225,39 @@ fine-tunes). Ranked by evidence-per-effort:
 No published precedent exists for this package (mechanistic diff of a
 multi-turn GRPO policy + held-out lexical-transfer probe) as of July 2026.
 
+## Notebooks
+
+Two interactive marimo notebooks accompany the code
+(`uv run marimo edit <file>`):
+
+- **`grpo_notes.py`** — the RL, derived: REINFORCE → why baselines →
+  GRPO-as-critic-replaced-by-sampling → token masking → where PPO's clip
+  went → the KL leash. Capstone: a small numpy policy trained with exactly
+  this repo's loss, learning the catch game live, with baseline and
+  group-size toggles that demonstrate why each piece exists.
+- **`math_refresher.py`** — the math underneath: derivatives → the
+  log-derivative identity → gradients → expectation → variance →
+  distributions → KL → a guided re-derivation of the score-function trick.
+  Every concept in three aligned representations (scrubbable picture,
+  annotated notation, executable numpy), with exercises.
+
 ## Lab notes
+
+**2026-07-22 — run 2 (100 steps, 2 groups × G=8, ~45 s/step, M4 Max).**
+First completed run (run 1 died at step 40 to an MPS allocator pathology —
+variable sequence lengths defeating the caching allocator; fixed by
+bucketing padded lengths and flushing the cache per step, see commit
+history). Greedy evals, n=100/fruit, base → ckpt-0100: strawberry
+0.21 → 0.37, apple 0.08 → 0.34, orange 0.36 → 0.51, **banana (held out)
+0.42 → 0.50**. Reading: outcome RL works on all training fruits (apple's
++0.26 against the base model's rightward bias is the cleanest effect,
+>4σ); **no erosion** — banana never fell meaningfully below base across
+five checkpoints (transient ckpt-0020 dip to 0.36, ~1σ); **transfer signal
+positive but unproven** — Δbanana +0.08 (~1σ) vs Δorange +0.15. No
+collapse signatures: KL settled near 0.005, CoT length stable ~90–100
+tok/ep, dead-group fraction halved in the final 20 steps. The run ended
+while still accelerating (most of orange's gain arrived in the last 20
+steps) — undertrained. Next: 300 steps with the rstd/ent/gnorm dashboard.
 
 **2026-07-22 — verification (M4 Max studio).** Mask check exact (295/678
 tokens generated in test episode). Smoke: 8.7–18.3 s/step at 4 eps/step;
@@ -226,6 +276,7 @@ uv run python catch_env.py            # env self-test: scripted-policy catch rat
 uv run python train.py --check-mask   # verify the gradient mask is exact
 uv run python train.py --steps 100    # train (logs → runs/log.jsonl)
 uv run python train.py --eval         # greedy catch-rate table, incl. banana
+uv run python train.py --eval runs/ckpt-0100 --eval-n 100   # eval a checkpoint properly
 ```
 
 Hardware notes: Qwen3-0.6B full-finetunes comfortably in 24GB on MPS (weights
