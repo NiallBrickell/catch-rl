@@ -196,6 +196,13 @@ def grpo_step(model, ref, opt, tok, episodes, kl_coef, device):
     for e in episodes:
         groups.setdefault(e["group"], []).append(e["reward"])
     zero_var = sum(1 for rs in groups.values() if max(rs) == min(rs))
+    # RAGEN's earliest collapse indicator: within-group reward std. Mean reward
+    # lags; the spread of outcomes dies first (the policy stops producing
+    # *different* attempts). zero_var is this signal binarized; log both.
+    def _std(rs):
+        m = sum(rs) / len(rs)
+        return (sum((r - m) ** 2 for r in rs) / len(rs)) ** 0.5
+    r_std = sum(_std(rs) for rs in groups.values()) / len(groups)
     for e in episodes:
         rs = groups[e["group"]]
         e["adv"] = e["reward"] - sum(rs) / len(rs)
@@ -205,6 +212,7 @@ def grpo_step(model, ref, opt, tok, episodes, kl_coef, device):
     # KL leash to the frozen initial model so the policy stays a language model.
     opt.zero_grad()
     N, tot_loss, tot_kl = len(episodes), 0.0, 0.0
+    ent_sum, ent_n = 0.0, 0  # -logp of sampled tokens = MC estimate of entropy
     for k in range(0, N, MICRO):  # micro-batch: the [B, L, 150k] logits are the memory hog
         chunk = episodes[k:k + MICRO]
         tok_logp, gm = batched_logprobs(tok, model, chunk, device, grad=True)
@@ -212,16 +220,25 @@ def grpo_step(model, ref, opt, tok, episodes, kl_coef, device):
         loss = torch.zeros((), device=device)
         for j, e in enumerate(chunk):
             lp = tok_logp[j][gm[j]]          # logprobs of this episode's sampled tokens
+            # Entropy = E_{t~pi}[-log pi(t)], and these tokens ARE samples from
+            # pi: their mean -logp is an unbiased entropy estimate, for free
+            # (the exact entropy would need the full 151k-vocab distribution).
+            ent_sum += float(-lp.detach().sum())
+            ent_n += lp.numel()
             delta = ref_logp[j][gm[j]].detach() - lp
             k3 = delta.exp() - delta - 1.0   # k3 KL estimator: unbiased-ish, always >= 0
             loss = loss + (-e["adv"] * lp.mean() + kl_coef * k3.mean()) / N
             tot_kl += k3.mean().item() / N
         tot_loss += loss.item()
         loss.backward()  # grads accumulate across micro-batches
-    torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+    # Pre-clip gradient norm: RAGEN's third early-warning signal (spikes).
+    gnorm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     opt.step()
     return {"loss": tot_loss, "kl": tot_kl,
-            "frac_zero_var_groups": zero_var / len(groups)}
+            "frac_zero_var_groups": zero_var / len(groups),
+            "reward_group_std": r_std,
+            "entropy_mc": ent_sum / max(ent_n, 1),
+            "grad_norm": float(gnorm)}
 
 
 def evaluate(model, tok, seg, device, n=30):
@@ -300,7 +317,8 @@ def main():
                "step_seconds": time.time() - t0,
                "mem_gb": torch.mps.driver_allocated_memory() / 2**30
                          if device == "mps" else 0.0}
-        print(f"step {step:4d} | reward {rec['reward']:.3f} | loss {rec['loss']:+.4f} | "
+        print(f"step {step:4d} | reward {rec['reward']:.3f} | rstd {rec['reward_group_std']:.2f} | "
+              f"ent {rec['entropy_mc']:.2f} | gnorm {rec['grad_norm']:.2f} | "
               f"kl {rec['kl']:.4f} | zero-var {rec['frac_zero_var_groups']:.2f} | "
               f"gen tok/ep {rec['gen_tokens_per_ep']:.0f} | mem {rec['mem_gb']:.1f}G | "
               f"{rec['step_seconds']:.1f}s")
