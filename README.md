@@ -90,7 +90,10 @@ Classic PPO learns that baseline with a second network (a value model/critic).
 **GRPO's whole trick is to skip the critic**: sample the same episode G times
 and use the group's mean reward as the baseline. Caught it in 4 of 6 tries →
 the 4 successes get advantage +⅓, the 2 failures −⅔. No value network, no
-extra memory, and the baseline is exact for that state by construction. This
+extra memory — though the group mean is a *noisy estimate*, not an oracle,
+and one subtlety matters: a rollout's own reward must be left out of its
+baseline (we average the *siblings*), because including it makes the
+baseline action-dependent and silently rescales the gradient by (G−1)/G. This
 is why the G rollouts in a group must share the *identical* initial state —
 otherwise the mean mixes "easy episode" with "bad policy" and the baseline is
 polluted.
@@ -280,9 +283,15 @@ history). Greedy evals, n=100/fruit, base → ckpt-0100: strawberry
 0.21 → 0.37, apple 0.08 → 0.34, orange 0.36 → 0.51, **banana (held out)
 0.42 → 0.50**. Reading: outcome RL works on all training fruits (apple's
 +0.26 against the base model's rightward bias is the cleanest effect,
->4σ); **no erosion** — banana never fell meaningfully below base across
-five checkpoints (transient ckpt-0020 dip to 0.36, ~1σ); **transfer signal
-positive but unproven** — Δbanana +0.08 (~1σ) vs Δorange +0.15. No
+>4σ); **no evidence of task-level erosion** — banana never fell
+meaningfully below base across five checkpoints (transient ckpt-0020 dip,
+~1σ; note the logged KL is measured on policy trajectories, not a
+generic-text retention probe, and staying near base is *expected* at this
+KL coefficient and step count); **held-out improvement positive but
+non-specific** — Δbanana +0.08 (~1σ) sits below the train-fruit deltas
+(+0.15 to +0.26), i.e. consistent with a general competence lift rather
+than anything orange-specific; the name-conditioning diagnostic and the
+tangerine/blorple battery are what can separate those stories. No
 collapse signatures: KL settled near 0.005, CoT length stable ~90–100
 tok/ep, dead-group fraction halved in the final 20 steps. The run ended
 while still accelerating (most of orange's gain arrived in the last 20

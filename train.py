@@ -205,7 +205,11 @@ def grpo_step(model, ref, opt, tok, episodes, kl_coef, device):
     r_std = sum(_std(rs) for rs in groups.values()) / len(groups)
     for e in episodes:
         rs = groups[e["group"]]
-        e["adv"] = e["reward"] - sum(rs) / len(rs)
+        # Leave-one-out baseline: a rollout's own reward must not appear in
+        # its baseline, or the baseline becomes action-dependent -- with the
+        # plain group mean the gradient is silently rescaled by (G-1)/G and
+        # "unbiased" stops being true. Averaging the SIBLINGS restores it.
+        e["adv"] = e["reward"] - (sum(rs) - e["reward"]) / max(len(rs) - 1, 1)
     # With one update per batch of rollouts, the PPO ratio pi/pi_old == 1
     # identically (the weights haven't moved since sampling), so clipping
     # would be a no-op: this is plain REINFORCE with a group baseline, plus a

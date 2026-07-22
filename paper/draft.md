@@ -18,12 +18,14 @@ held-out evaluation fruit — **banana** — whose name never appears in a
 training episode but whose dynamics match orange. After 100 steps, every
 training fruit improves (apple +0.26 absolute, against an adverse prior
 bias); the held-out banana improves +0.08 over its own base rate (n=100,
-~1σ), tracking orange's +0.15; and held-out performance never degrades across
-checkpoints — the language prior survives RL intact, consistent with the
-KL-minimal character of on-policy updates. The transfer signal is directionally
-positive but not yet significant; training ended while performance was still
-accelerating. We release the implementation, derivation notebooks, and a
-protocol for the checkpoint-level "erosion curve" and mechanistic follow-ups.
+~1σ) — directionally positive, but not yet separable from an across-the-board
+competence gain (train-fruit deltas ran +0.15 to +0.26); and held-out
+performance shows no evidence of task-level degradation across checkpoints,
+as expected under a KL leash at this step count. The controls that would
+make the transfer claim identifiable — nonce-word holdouts, a
+misleading-semantics condition, and a turn-1 name-conditioning diagnostic —
+are specified and running on existing checkpoints. We release the
+implementation, derivation notebooks, and the protocol.
 
 ## 1. Motivation
 
@@ -73,10 +75,12 @@ turn the model reasons briefly in free text and emits `ACTION: X`;
 unparseable output falls back to STAY. Multi-turn GRPO with deliberate
 simplifications, each load-bearing:
 
-- **Group baseline, mean-only.** G=8 rollouts share an identical initial
-  state (fruit + seed); advantage = reward − group mean. No std division
-  (Dr.GRPO): with binary rewards, std-scaling manufactures large gradients in
-  near-deterministic groups.
+- **Group baseline, leave-one-out mean.** G=8 rollouts share an identical
+  initial state (fruit + seed); advantage = reward − mean of the *sibling*
+  rollouts' rewards (a rollout's own reward in its baseline makes the
+  baseline action-dependent and rescales the gradient by (G−1)/G). No std
+  division (Dr.GRPO): with binary rewards, std-scaling manufactures large
+  gradients in near-deterministic groups.
 - **Strictly on-policy, one update per batch.** The PPO ratio is identically
   1, so the objective is REINFORCE-with-a-group-baseline; clipping would be a
   no-op. Sampling at temperature 1.0 with all sampler warping disabled, so the
@@ -123,18 +127,53 @@ Three observations:
    base policy's rightward bias makes the left-drifting fruit nearly
    uncatchable at baseline (0.08), and RL overcomes a prior bias rather than
    merely amplifying one.
-2. **No erosion.** Held-out banana never falls meaningfully below its base
-   rate at any checkpoint (transient −0.06 at ckpt-20, ~1σ). One hundred
-   steps of outcome RL did not strip-mine the prior — consistent with the
-   small measured KLs throughout and with the view that on-policy RL finds
-   KL-minimal solutions.
-3. **A transfer signal, not yet a claim.** Banana improves +0.08 without ever
-   appearing in training, directionally tracking orange's +0.15. At n=100
-   this is ~1σ: consistent with P1, insufficient to establish it. Notably,
-   training ended mid-acceleration — most of orange's gain arrived in the
-   final 20 steps — so run 2 bounds the effect from below.
+2. **No evidence of task-level erosion.** Held-out banana never falls
+   meaningfully below its base rate at any checkpoint (transient −0.06 at
+   ckpt-20, ~1σ). Two caveats keep this honest: the logged KL is measured on
+   policy trajectories, not a generic-language retention probe; and staying
+   near base is the *expected* outcome under a KL leash at 100 steps — the
+   erosion question becomes interesting at longer horizons, where the
+   checkpoint curve can be overlaid against KL drift.
+3. **A held-out improvement that is not yet attributable.** Banana improves
+   +0.08 without ever appearing in training — but this undershoots the
+   train-fruit deltas (+0.15 to +0.26), so the data is equally consistent
+   with three stories: (a) transfer of newly acquired skill through the
+   name, (b) a generic competence lift (better observation parsing, action
+   formatting, reactive tracking) that raises every fruit, and (c)
+   concentration of probability mass on an already-favorable disposition —
+   banana has the *highest* base rate (0.42), courtesy of the base policy's
+   rightward bias, making the sharpening story most available for exactly
+   this fruit. The diagnostics in §4 are designed to separate (a) from (b)
+   from (c); until they do, +0.08 is a measurement, not a mechanism.
+   Training also ended mid-acceleration — most of orange's gain arrived in
+   the final 20 steps — so run 2 bounds all effects from below.
 
 ## 4. Planned analyses
+
+**Immediate diagnostics (running on existing checkpoints, ahead of longer
+training — these determine what the numbers in §3 mean):**
+
+- **Turn-1 name-conditioning.** On turn 1 the fruit has not moved; drift is
+  unobservable, so any action-distribution difference across names at
+  identical positions is name-conditioned anticipation. Preemptive rightward
+  lean for orange (and banana, blorple) but not apple (and quorf) is direct
+  evidence the policy uses the word; identical distributions across names
+  means the policy is reactive and lexical transfer is impossible in
+  principle — turning a null banana result from ambiguous into explained.
+- **The holdout battery** (evaluated on existing checkpoints): banana (real,
+  matched), plum (real, neutral), blorple/quorf (nonce, matched/opposed),
+  and **tangerine** — semantically adjacent to orange but carrying apple's
+  dynamics. A *decrement* on tangerine relative to base is the single most
+  diagnostic outcome available: neither generic competence nor
+  concentration-on-priors predicts it; only name-mediated anticipation does.
+- **Paired analysis.** Evaluation seeds are shared across all models, so
+  base-vs-checkpoint comparisons should be paired per episode (McNemar)
+  rather than marginal — substantially tighter at the same n.
+- **Base-model pass@k** on the task, separating RL creating competence from
+  RL concentrating probability mass on already-reachable behavior — the
+  story most available for banana specifically (§3.3c).
+
+**Second wave:**
 
 - **Experiment 2 — semantics that predict physics (the headline test).**
   Train on objects whose real-world properties map to environment dynamics
@@ -168,7 +207,14 @@ Three observations:
   RL-born features shared by {orange, banana} but not strawberry.
 - **A verbalization probe:** ask the trained policy to state each fruit's
   dynamics — it only ever observed positions and rewards — testing whether
-  implicitly acquired dynamics became linguistically recoverable.
+  implicitly acquired dynamics became linguistically recoverable. Run it on
+  banana too: has training made the model *willing to assert* that bananas
+  drift right?
+- **Multiple training seeds** — larger eval n reduces environment noise but
+  not training-run variance; replication is the only cure for the latter.
+- **Engineering for exact resumption** (run directories carrying config,
+  optimizer/RNG/global-step state, and per-checkpoint evaluations), so the
+  erosion curve and seed replications are cheap to extend.
 
 ## 5. Limitations
 

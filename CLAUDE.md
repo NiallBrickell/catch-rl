@@ -107,6 +107,10 @@ every 10 steps — read them for parser-hacking/degenerate outputs.
   prompt, eval on novel descriptions — the real-physics transfer experiment.
 - Bigger runs (Qwen3-1.7B+, LoRA): the M4 Max studio on the local network,
   `ssh studio`.
+- Engineering debt (from external review): proper run directories — config,
+  optimizer/RNG/global-step state for exact resumption, per-checkpoint eval
+  results stored beside checkpoints; currently resuming resets optimizer
+  moments and step numbering and appends to the same log.
 - **Write-up (TODO, once results exist):** an arXiv-style paper (PDF via
   mdprint/LaTeX, typeset properly — typography is part of the deliverable)
   plus an

@@ -7,9 +7,20 @@ fall on even-numbered turns (turns 2 and 4). That makes the dynamics
 learnable-but-not-trivial: a policy that just chases the fruit's current
 column is good, but a policy that understands "apples drift left" is better.
 
-"banana" is held out of training. It has the same dynamics as "orange" but a
-novel name, so evaluating on it tests whether the model learned "this WORD
-means drift +1" versus a transferable "watch how the column changes" habit.
+Only the three TRAIN_FRUITS ever appear in training. The evaluation battery
+holds out a 2x2-ish grid of names, because a single held-out fruit cannot
+separate "learned a name-keyed lookup" from "learned a name-agnostic skill"
+from "reads the name's semantics":
+
+  banana    real word, orange's dynamics   (matched holdout)
+  tangerine real word, APPLE's dynamics    (misleading: semantically nearest
+                                            to orange, drifts the other way --
+                                            a name-conditioned policy should do
+                                            WORSE than base here; a generic one
+                                            shouldn't care)
+  plum      real word, no drift            (neutral holdout)
+  blorple   nonce word, orange's dynamics  (no semantics to read)
+  quorf     nonce word, apple's dynamics   (no semantics to read)
 """
 
 import random
@@ -18,9 +29,10 @@ WIDTH = 7    # columns 0..6
 BOTTOM = 5   # the basket's row; the fruit lands when it reaches this row
 TURNS = 5    # decision turns per episode (fruit falls rows 0 -> 5)
 
-DRIFT = {"strawberry": 0, "apple": -1, "orange": +1, "banana": +1}
+DRIFT = {"strawberry": 0, "apple": -1, "orange": +1,
+         "banana": +1, "tangerine": -1, "plum": 0, "blorple": +1, "quorf": -1}
 TRAIN_FRUITS = ["strawberry", "apple", "orange"]
-EVAL_FRUITS = TRAIN_FRUITS + ["banana"]
+EVAL_FRUITS = TRAIN_FRUITS + ["banana", "tangerine", "plum", "blorple", "quorf"]
 
 
 def _clamp(col):
