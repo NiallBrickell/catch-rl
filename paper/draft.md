@@ -51,8 +51,10 @@ ingredient and probes a deliberately limited form of the second: banana's
 assigned dynamics are semantically arbitrary, so held-out-banana transfer
 distinguishes name-conditional lookup from object-general skill — it cannot,
 by construction, demonstrate semantic inheritance of dynamics. Experiment 2
-(§4) supplies the missing ingredient by making dynamics derivable from
-meaning alone.
+(§4) supplies the missing ingredient with counterbalanced semantic clusters:
+dynamics stay arbitrary (so the base model cannot already know them), and
+the only route from a trained binding to a held-out word is pretrained
+similarity.
 
 **Hypothesis.** Outcome RL on top of a text prior produces a property neither
 ingredient produces alone: grounded competence that generalizes along semantic
@@ -61,9 +63,9 @@ skill; the detectable signature is skill that travels the map.
 
 **Positioning.** That language priors aid RL generalization is established
 (pretrained word embeddings transferring goal-conditioned policies,
-shower→bathtub, Hill et al. lineage / arXiv:2007.05196; entity–dynamics
-grounding from manuals, Hanjie et al. 2021; language representations for RL
-generalization, Goodger & Robinson 2021), as is grounding an LLM through
+shower→bathtub — Hutsebaut-Buysse, Mets & Latré 2020, arXiv:2007.05196;
+entity–dynamics grounding from manuals, Hanjie et al. 2021; "Language
+Representations for Generalization in RL", PMLR 157, 2021), as is grounding an LLM through
 online RL: **GLAM** (Carta et al. 2023) is the closest ancestor — it also
 tested unseen nouns, invented words, and pretrained-vs-random ablations —
 and TWOSOME and LLaRP extend the recipe. Experiment 1 below is therefore
@@ -174,10 +176,13 @@ training — these determine what the numbers in §3 mean):**
 - **Turn-1 name-conditioning.** On turn 1 the fruit has not moved; drift is
   unobservable, so any action-distribution difference across names at
   identical positions is name-conditioned anticipation. Preemptive rightward
-  lean for orange (and banana, blorple) but not apple (and quorf) is direct
-  evidence the policy uses the word; identical distributions across names
-  means the policy is reactive and name-mediated transfer is impossible in
-  principle — turning a null banana result from ambiguous into explained.
+  lean for orange (and possibly banana) and leftward lean for apple is
+  direct evidence the policy uses the word; the nonce names should stay
+  neutral (they calibrate the diagnostic's noise floor). Identical
+  distributions across names would show no detectable conditioning *in
+  these states* — reframing a null banana result as expected rather than
+  ambiguous, though it cannot rule out name effects expressed only in
+  states we did not probe.
 - **The holdout battery** (evaluated on existing checkpoints): banana (real,
   matched), plum (real, neutral), blorple/quorf (nonce, matched/opposed),
   and **tangerine** — semantically adjacent to orange but carrying apple's
@@ -213,17 +218,20 @@ training — these determine what the numbers in §3 mean):**
   base model, and a lexical-scrambling run (shuffled name↔cluster
   pairings). A conflict condition (misleading name, turns-of-evidence to
   override the prior's prediction) quantifies prior-vs-observation
-  arbitration.
+  arbitration. Two requirements for the reversal logic to hold: **several
+  training seeds per assignment** (a single pair of runs cannot distinguish
+  mapping reversal from run-to-run variance), and **replication across ≥2
+  independent semantic cluster pairs** (e.g. heavy/light and fast/slow
+  clusters), so the result does not rest on one lexical axis.
 - **Longer training** (run 3, 300 steps, in progress) with the collapse
   dashboard active; larger eval n for the banana–orange delta comparison;
   a first-action analysis on banana episodes (leading rightward before any
   drift has been observed would indicate name-based borrowing rather than
   in-episode evidence).
-- **P2 controls:** nonsense fruit names ("blorple") and shuffled
-  name↔dynamics pairings, separating semantic transfer from slot-filling;
-  a no-language policy (small network on raw state, trained with the
-  identical loss) as the no-prior baseline — it learns the task easily and
-  cannot transfer by construction.
+- **No-prior baseline:** a small policy network on raw state, trained with
+  the identical loss — it learns the task easily and cannot transfer by
+  construction. (The nonce-name and shuffled-pairing controls formerly
+  listed here are now constituent conditions of Experiment 2.)
 - **The erosion curve, properly:** held-out performance per checkpoint
   overlaid with KL-from-base on generic text; the prediction from RL's Razor
   is lockstep decay if and when forgetting begins.

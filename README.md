@@ -214,9 +214,12 @@ teeth: if anvil inherits whatever rock was taught *in that run*, and the
 inheritance flips when the assignment flips, neither corpus physics
 ("anvils are heavy" is in the text) nor generic competence can explain it —
 only the newly-taught binding traveling through pretrained similarity.
-Design principle throughout: the *binding being learned* sits outside the
-prior; the *transfer cue* sits inside it. Both ingredients, or the
-experiment tests nothing.
+Two requirements for the reversal logic to hold: several seeds per
+assignment (one pair of runs can't distinguish reversal from run variance)
+and replication across ≥2 independent cluster pairs, so nothing rests on a
+single lexical axis. Design principle throughout: the *binding being
+learned* sits outside the prior; the *transfer cue* sits inside it. Both
+ingredients, or the experiment tests nothing.
 
 Other cheap experiments once the loop works:
 - **Is the CoT load-bearing?** Retrain (or just eval) with thinking forbidden —
