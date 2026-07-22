@@ -959,7 +959,8 @@ def _():
        changes, some term in your loss is not advantage-gated — a leaked observation token, a
        stray KL sign, an un-detached value — and it was silently steering every "real" run too.
 
-    Both take five minutes. Both catch real bugs in hand-rolled RL loops (this repo's ancestors.
+    Both take five minutes. Both catch real bugs in hand-rolled RL loops far more often
+    than seems fair.
     """)
     return
 

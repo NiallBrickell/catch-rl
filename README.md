@@ -40,11 +40,12 @@ Predictions, in decreasing order of comfort:
 - **P3 — fragility.** If RL strip-mines the prior (entropy/reasoning
   collapse), banana transfer *decays* across checkpoints even while training
   fruits improve. Eval banana at every saved checkpoint: this erosion curve
-  makes the language-vs-embodiment debate measurable, and nobody has published it.
+  makes the language-vs-embodiment debate a measurable quantity, and nobody
+  has published it.
 
 **Falsification:** if orange → ~1.0 while banana ≈ base model, the policy
-learned lexical slot-filling, not semantics — a clean point for the grounding-first side
-of the debate. Either outcome is a result.
+learned lexical slot-filling, not semantics — a clean point for the
+grounding-first side of the debate. Either outcome is a result.
 
 (Post-training probe, free to run: ask the trained model to *state the rules*
 — "describe how each fruit falls." It only ever saw positions and rewards; if
@@ -165,8 +166,8 @@ Banana shares orange's dynamics but the *word* never appeared in training.
 If post-RL catch-rate(banana) ≈ catch-rate(orange) ≫ base model, the policy
 learned something like "track the object and anticipate drift" in a way that
 rides on the language prior, rather than memorising "the token `straw`+`berry`
-means press STAY." That's the strawberry→banana language-vs-embodiment argument, in
-miniature. A stricter follow-up: invent a *nonsense* fruit ("a blorple is at
+means press STAY." That's the language-vs-embodiment argument in miniature,
+run as an experiment. A stricter follow-up: invent a *nonsense* fruit ("a blorple is at
 column 3…") — banana tests transfer via real-world semantics; blorple tests
 whether the behaviour generalises over the object slot itself.
 
