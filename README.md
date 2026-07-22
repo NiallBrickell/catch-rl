@@ -206,6 +206,18 @@ fine-tunes). Ranked by evidence-per-effort:
 No published precedent exists for this package (mechanistic diff of a
 multi-turn GRPO policy + held-out lexical-transfer probe) as of July 2026.
 
+## Lab notes
+
+**2026-07-22 — verification (M4 Max studio).** Mask check exact (295/678
+tokens generated in test episode). Smoke: 8.7–18.3 s/step at 4 eps/step;
+step 3 hit an all-fail group (`zero-var 1.00`, zero gradient) — dead groups
+are real, hence G=8 for run 1. Base-model greedy control (n=30/fruit):
+strawberry 0.20, apple 0.03, orange 0.43, banana 0.57; scripted ceiling
+≈0.95–0.98. Reading: big headroom; marked directional bias in the base
+policy (apple, the left-drifter, ≈0 — rightward prior?); the banana-vs-orange
+gap is ~1σ at n=30, i.e. noise until proven otherwise. P1 is a delta-from-base
+measurement, and real evals need n ≥ 100.
+
 ## Running it
 
 ```bash
