@@ -177,6 +177,35 @@ Other cheap experiments once the loop works:
 - Vary drift magnitude to make anticipation (not just tracking) necessary.
 - `--kl 0` and watch the collapse happen for real. Educational carnage.
 
+## Phase 2: the MRI plan (internals, not just outcomes)
+
+The behavioral predictions above all have internal correlates, and the tooling
+for our exact model exists (Anthropic's circuit-tracer + BluelightAI's
+cross-layer transcoders for Qwen3-0.6B; Delta-Crosscoder for diffing narrow
+fine-tunes). Ranked by evidence-per-effort:
+
+0. **Sanity first**: base-model pass@k on catch (does the prior already
+   contain the skill, occasionally? RL may consolidate rather than create —
+   measure before claiming emergence), plus per-checkpoint KL from base.
+   RL's-Razor prediction: banana transfer decays in lockstep with KL drift.
+1. **Fruit-token geometry** — residual streams for all four fruits in
+   identical board states, every layer, every checkpoint: does banana stay
+   glued to orange while dynamics structure gets carved? Forward hooks only.
+2. **Cross-fruit activation patching** (causal): patch orange-context
+   activations into banana episodes (strawberry as control). A near-no-op
+   proves banana rides orange's machinery.
+3. **Linear probes** for world-state variables (fruit col, drift direction,
+   signed offset) per layer, base vs trained — did RL build a world-state
+   readout that text alone lacks?
+4. **Crosscoder diff** base-vs-final: hunt for RL-born features firing for
+   {orange, banana} but not strawberry. The associative smoking gun; needs
+   the studio.
+5. Garnish: logit lens at the action position across checkpoints; weight-space
+   diffing (which matrices moved, when).
+
+No published precedent exists for this package (mechanistic diff of a
+multi-turn GRPO policy + held-out lexical-transfer probe) as of July 2026.
+
 ## Running it
 
 ```bash
