@@ -180,21 +180,32 @@ the mean reward is the *last* thing to move):
 
 ## The experiment
 
-| fruit      | drift               | seen in RL? |
-|------------|---------------------|-------------|
-| strawberry | falls straight      | yes         |
-| apple      | drifts left         | yes         |
-| orange     | drifts right        | yes         |
-| **banana** | drifts right        | **never**   |
+| word          | drift    | trained? | role in the battery                          |
+|---------------|----------|----------|----------------------------------------------|
+| strawberry    | none     | yes      | train                                        |
+| apple         | left     | yes      | train (fights the base model's right bias)   |
+| orange        | right    | yes      | train                                        |
+| **banana**    | right    | never    | real word, matched dynamics                  |
+| **tangerine** | left     | never    | real word *near orange*, misleading dynamics |
+| **plum**      | none     | never    | real word, neutral                           |
+| **blorple**   | right    | never    | nonce — generic-skill floor                  |
+| **quorf**     | left     | never    | nonce — generic-skill floor                  |
 
-Banana shares orange's dynamics but the *word* never appeared in training.
-If post-RL catch-rate(banana) ≈ catch-rate(orange) ≫ base model, the policy
-learned something like "track the object and anticipate drift" in a way that
-rides on the language prior, rather than memorising "the token `straw`+`berry`
-means press STAY." That's the language-vs-embodiment argument in miniature,
-run as an experiment. A stricter follow-up: invent a *nonsense* fruit ("a blorple is at
-column 3…") — banana tests transfer via real-world semantics; blorple tests
-whether the behaviour generalises over the object slot itself.
+No single holdout is diagnostic on its own — a banana improvement is equally
+consistent with transfer, with a generic play-the-game-better lift, or with
+sharpening a favorable prior bias. The battery separates the stories: the
+nonce words floor what name-free skill achieves; tangerine predicts a
+*decrement* under name-mediated anticipation (semantically adjacent to
+orange, drifting the other way) that no generic story can produce; and the
+turn-1 diagnostic (`analysis/diag_name_conditioning.py`) probes aligned
+states where the fruit hasn't moved yet — a reactive policy says STAY there,
+so any name-keyed lean is the prior acting before evidence exists.
+
+Prior-art honesty: grounding LLMs through online RL and testing unseen and
+invented nouns dates to GLAM (Carta et al., 2023) — this experiment is best
+read as a pilot on a modern decoder + GRPO stack whose instruments feed
+Experiment 2, where the aimed contribution lives (see the paper draft's
+positioning section).
 
 ### Experiment 2 (planned): counterbalanced semantic routing
 
@@ -343,7 +354,8 @@ uv run python train.py --check-mask   # verify the gradient mask reconstructs ge
 ```bash
 uv run python train.py --steps 100 --group-size 8   # ~1-1.5h on an M4-class GPU
 uv run python train.py --eval --eval-n 100          # base model catch-rate table (the control)
-uv run python train.py --eval runs/ckpt-0100 --eval-n 100   # a checkpoint, incl. held-out banana
+uv run python train.py --eval runs/ckpt-0100 --eval-n 100   # a checkpoint, full holdout battery
+uv run python analysis/diag_name_conditioning.py Qwen/Qwen3-0.6B runs/ckpt-0100   # turn-1 name-lean tables
 ```
 
 Training prints one line per step (reward, `rstd`, `ent`, `gnorm`, KL,

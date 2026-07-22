@@ -10,11 +10,12 @@ libraries** (no TRL, no veRL, no verifiers) — the hand-rolled loop *is* the
 point. Only `torch` and `transformers` (for pretrained weights) are allowed as
 ML dependencies; don't introduce RL frameworks to "simplify" things.
 
-The experiment: train on strawberry/apple/orange, then eval on **banana** — a
-fruit whose *word* never appears in RL but whose dynamics match orange. Banana
-must stay held out of training (`TRAIN_FRUITS` vs `EVAL_FRUITS` in
-`catch_env.py`); that split is the entire experiment. The README explains the
-hypothesis and predictions in detail.
+The experiment: train on strawberry/apple/orange, then eval on a held-out
+battery — banana (real, matched), tangerine (real, near-orange, misleading),
+plum (real, neutral), blorple/quorf (nonce floors). All five stay out of
+training (`TRAIN_FRUITS` vs `EVAL_FRUITS` in `catch_env.py`); that split is
+the entire experiment. The README explains the hypothesis, battery logic,
+and predictions; `paper/draft.md` carries positioning and results.
 
 ## Commands
 
@@ -76,9 +77,13 @@ everything else, in four pieces:
   mean stops being a valid baseline.
 - Unparseable model output falls back to `STAY` (last `ACTION:` match wins).
 
-There is also `grpo_notes.py`, a standalone Marimo notebook teaching the math
-(`uv run marimo edit grpo_notes.py`). It deliberately imports nothing from the
-trainer — keep it self-contained.
+Beyond the two core files: `analysis/` holds diagnostics (the turn-1
+name-conditioning probe), and three standalone Marimo notebooks form a
+teaching ladder — `math_refresher.py` (calculus/probability up to the
+score-function trick), `ml_primer.py` (backprop → attention → LM-as-
+classifier), `grpo_notes.py` (REINFORCE → GRPO, capstone learns this env).
+Notebooks deliberately import nothing from the trainer — keep them
+self-contained.
 
 ## Watching a run
 
@@ -100,7 +105,13 @@ every 10 steps — read them for parser-hacking/degenerate outputs.
 
 ## Roadmap
 
-- Next up: `gym_env.py` — a Gymnasium adapter (text-serialized state vectors,
+- **Next experiment: counterbalanced semantic routing** (Experiment 2 in the
+  README/paper) — semantic clusters with arbitrary cluster→dynamics
+  assignments *reversed across matched runs*, several seeds per assignment,
+  ≥2 independent cluster pairs. ~15 training runs: a studio-week, or ~$20 of
+  rented 4090 time. Blocked only on the run-3 diagnostics (whether
+  name-conditioning exists at all shapes what Exp 2 must induce).
+- Later: `gym_env.py` — a Gymnasium adapter (text-serialized state vectors,
   action-repeat so the horizon stays LLM-sized, no vision). CartPole first as
   validation that 0.6B can control real physics through text at all, then
   LunarLander with wind/gravity settings *described in language* in the
