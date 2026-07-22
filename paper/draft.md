@@ -85,9 +85,11 @@ decision turns while the agent moves a basket LEFT/RIGHT/STAY via text.
 Observations are plain English ("Turn 2 of 5. The apple is at column 3, row
 2. Your basket is at column 5."). Reward is binary at episode end: caught or
 not. Per-fruit dynamics: strawberry falls straight; apple drifts left on even
-turns; orange drifts right on even turns. **Banana (drift right, identical to
-orange) is evaluation-only.** A scripted greedy-chase policy establishes a
-ceiling of ≈0.95.
+turns; orange drifts right on even turns. **Evaluation-only holdouts:**
+banana (real word, orange's dynamics), tangerine (real, semantically near
+orange, apple's dynamics — the misleading condition), plum (real, no
+drift), and blorple/quorf (nonce, matched/opposed — the generic-skill
+floor). A scripted greedy-chase policy establishes a ceiling of ≈0.95.
 
 **Policy and training.** Qwen3-0.6B (instruct), full fine-tune in bf16. Each
 turn the model reasons briefly in free text and emits `ACTION: X`;
@@ -276,4 +278,8 @@ earned.
 *(to be completed — currently: Williams 1992; Shao et al. 2024 (GRPO); Liu et
 al. 2025 (Dr.GRPO); RAGEN (Wang et al. 2025); GiGPO (Feng et al. 2025);
 Shenfeld et al. 2025 (RL's Razor); Yue et al. 2025 (pass@k); GLAM (Carta et
-al. 2023); RT-2 (Brohan et al. 2023); Schulman 2020 (KL estimators).)*
+al. 2023); TWOSOME (Tan et al. 2024); LLaRP (Szot et al. 2024);
+Hutsebaut-Buysse, Mets & Latré 2020 (embedding-mediated goal transfer);
+Hanjie et al. 2021 (entity–dynamics grounding); "Language Representations
+for Generalization in RL" (PMLR 157, 2021); RT-2 (Brohan et al. 2023);
+Schulman 2020 (KL estimators).)*
