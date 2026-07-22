@@ -227,19 +227,24 @@ multi-turn GRPO policy + held-out lexical-transfer probe) as of July 2026.
 
 ## Notebooks
 
-Two interactive marimo notebooks accompany the code
-(`uv run marimo edit <file>`):
+Three interactive marimo notebooks accompany the code
+(`uv run marimo edit <file>`), forming a ladder — math → core ML → RL:
 
+- **`math_refresher.py`** — the math underneath everything: derivatives →
+  the log-derivative identity → gradients → expectation → variance →
+  distributions → KL → a guided re-derivation of the score-function trick.
+  Every concept in three aligned representations (scrubbable picture,
+  annotated notation, executable numpy), with exercises.
+- **`ml_primer.py`** — a brisk core-ML pass: networks as bent linear maps →
+  backprop as chain rule with bookkeeping (manual numpy matched against
+  autograd to machine precision) → softmax/cross-entropy → attention → a
+  language model as a next-token classifier, mapped line-by-line onto this
+  repo's `batched_logprobs`.
 - **`grpo_notes.py`** — the RL, derived: REINFORCE → why baselines →
   GRPO-as-critic-replaced-by-sampling → token masking → where PPO's clip
   went → the KL leash. Capstone: a small numpy policy trained with exactly
   this repo's loss, learning the catch game live, with baseline and
   group-size toggles that demonstrate why each piece exists.
-- **`math_refresher.py`** — the math underneath: derivatives → the
-  log-derivative identity → gradients → expectation → variance →
-  distributions → KL → a guided re-derivation of the score-function trick.
-  Every concept in three aligned representations (scrubbable picture,
-  annotated notation, executable numpy), with exercises.
 
 ## Lab notes
 
