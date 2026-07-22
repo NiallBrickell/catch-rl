@@ -39,12 +39,18 @@ This project isolates the second claim at the smallest scale that can carry
 it. The base model is the text-only control: it demonstrably "knows" that
 objects fall and drift (it will tell you so), yet catches poorly. If outcome
 RL closes that gap, the interesting question is *what the gain generalizes
-through*. A policy could learn "the token `orange` means drift right" (lexical
-slot-filling) or something the word merely indexes (semantics). A fruit whose
-name never appears in training, with dynamics identical to a trained fruit,
-separates the two: slot-filling cannot transfer to a never-seen slot value;
-semantic indexing can, because *banana* sits near *orange* in representation
-space courtesy of pretraining alone.
+through*. The design principle has two ingredients in deliberate tension:
+the binding being **learned** must sit outside the prior (our drift
+assignments are counterfactual — no corpus says apples drift left; only
+experience teaches it), while the **transfer cue** must sit inside the prior
+(else language has no work to do and a from-scratch policy would generalize
+identically). Experiment 1 (this paper's data) satisfies the first
+ingredient and probes a deliberately limited form of the second: banana's
+assigned dynamics are semantically arbitrary, so held-out-banana transfer
+distinguishes name-conditional lookup from object-general skill — it cannot,
+by construction, demonstrate semantic inheritance of dynamics. Experiment 2
+(§4) supplies the missing ingredient by making dynamics derivable from
+meaning alone.
 
 **Hypothesis.** Outcome RL on top of a text prior produces a property neither
 ingredient produces alone: grounded competence that generalizes along semantic
@@ -130,8 +136,20 @@ Three observations:
 
 ## 4. Planned analyses
 
+- **Experiment 2 — semantics that predict physics (the headline test).**
+  Train on objects whose real-world properties map to environment dynamics
+  (rock: fast and straight; feather: slow, strong drift; bubble: barely
+  falls); evaluate zero-shot on never-experienced words whose text semantics
+  alone predict behavior (anvil, brick → rock-like; leaf, petal →
+  feather-like). Correct handling of an anvil the policy has never seen can
+  only arrive through what the word means — semantic inheritance, isolated.
+  Includes a **conflict condition** (a "feather" with rock dynamics):
+  turns-of-evidence-to-override measures prior-vs-observation arbitration.
 - **Longer training** (run 3, 300 steps, in progress) with the collapse
-  dashboard active; larger eval n for the banana–orange delta comparison.
+  dashboard active; larger eval n for the banana–orange delta comparison;
+  a first-action analysis on banana episodes (leading rightward before any
+  drift has been observed would indicate name-based borrowing rather than
+  in-episode evidence).
 - **P2 controls:** nonsense fruit names ("blorple") and shuffled
   name↔dynamics pairings, separating semantic transfer from slot-filling;
   a no-language policy (small network on raw state, trained with the

@@ -32,14 +32,15 @@ experience generalize.
 
 Predictions, in decreasing order of comfort:
 
-- **P1 — transfer.** Post-RL, banana's improvement over its own base rate
-  tracks orange's (Δbanana ≈ Δorange > 0), despite "banana" never appearing
-  in an RL episode. (Delta-from-base, not raw rates: the fruits start from
-  different base catch rates, so raw-rate comparisons conflate prior bias
-  with transfer.) Mechanism: the
-  token "banana" already sits near "orange" in representation space *because
-  of text alone*; RL writes drift-competence into features the novel word
-  already indexes. This is associative learning riding the prior.
+- **P1 — slot transfer.** Post-RL, banana's improvement over its own base
+  rate tracks orange's (Δbanana ≈ Δorange > 0), despite "banana" never
+  appearing in an RL episode. (Delta-from-base, not raw rates: the fruits
+  start from different base catch rates.) Honest scope note: banana's
+  assigned dynamics are *semantically arbitrary* — nothing in the meaning of
+  "banana" predicts drifts-right — so P1 tests whether the learned policy is
+  name-conditional lookup or object-general skill, **not** semantic
+  inheritance of dynamics. The semantic-inheritance test is Experiment 2
+  (below), where meaning actually predicts physics.
 - **P2 — the prior is load-bearing.** Replace fruit names with nonsense tokens
   ("blorple") or shuffle name↔dynamics pairings and the transfer should
   weaken or vanish — separating semantic generalization from slot-filling.
@@ -191,6 +192,26 @@ means press STAY." That's the language-vs-embodiment argument in miniature,
 run as an experiment. A stricter follow-up: invent a *nonsense* fruit ("a blorple is at
 column 3…") — banana tests transfer via real-world semantics; blorple tests
 whether the behaviour generalises over the object slot itself.
+
+### Experiment 2 (planned): semantics that predict physics
+
+The catch env's drift assignments are deliberately counterfactual — that's
+what makes the *learning* real (no corpus says apples drift left; only
+experience teaches it). But it means held-out-word transfer can't run
+through meaning: banana's dynamics are arbitrary, so a transfer result shows
+slot-generalization, not semantic inheritance. Experiment 2 closes the loop
+by making dynamics *derivable from the word*: train on **rock** (falls
+fast, straight), **feather** (slow, drifts hard), **bubble** (barely falls,
+drifts with any breeze); evaluate on never-experienced words whose text
+semantics alone predict behavior — **anvil**/**brick** (rock-like),
+**leaf**/**petal** (feather-like). The prior is the only place an anvil's
+heaviness exists, so correct zero-shot handling *must* be inheritance
+through meaning. Plus the **conflict test**: a "feather" that secretly falls
+like a rock — how many turns of contradicting observation does it take for
+the policy to abandon the prior's prediction? Prior-vs-evidence arbitration,
+measured in a toy. Design principle throughout: the *binding being learned*
+sits outside the prior; the *transfer cue* sits inside it. Both ingredients,
+or the experiment tests nothing.
 
 Other cheap experiments once the loop works:
 - **Is the CoT load-bearing?** Retrain (or just eval) with thinking forbidden —
