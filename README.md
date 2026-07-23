@@ -173,6 +173,14 @@ the mean reward is the *last* thing to move):
 - **Mean generated tokens per turn** — if it trends toward the minimum, the
   CoT is atrophying toward bare ACTION lines. Interesting either way: is the
   reasoning load-bearing or decorative? You can test this directly (see below).
+- **`mi_retrieval_acc` / `mi_zscore`** (every 10 steps) — RAGEN-2's insight:
+  entropy can't tell healthy convergence from *input-agnostic* reasoning,
+  because a policy can keep its traces diverse while they stop depending on
+  the input. So we cross-score: each turn-1 completion's logprob against
+  every sampled turn-1 prompt in the batch. If a trace can't identify its
+  own input (retrieval accuracy falling toward chance, z-score toward 0),
+  the "reasoning" has become a template — a signal token counts only catch
+  later, once the template also shrinks.
 - **KL** — a slow rise is learning; a spike is the policy bolting.
 - **Parser hacking** — the model only needs to end with a parseable line;
   degenerate outputs that game the parser are miniature reward hacking. Sample

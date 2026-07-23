@@ -33,6 +33,8 @@ LEFT moves your basket one column toward 0, RIGHT one column toward 6."""
 
 ACTION_RE = re.compile(r"ACTION:\s*(LEFT|RIGHT|STAY)")
 MICRO = 2  # episodes per training forward; bounds the logits tensor (~150k vocab)
+MI_EVERY = 10  # steps between MI reasoning diagnostics
+MI_TRACES = 8  # max (prompt, completion) pairs cross-scored per diagnostic
 
 
 def bucket(n, size=128):
@@ -76,7 +78,7 @@ def new_episode(tok, seg, fruit, seed, group):
     text = (seg["sys_pre"] + SYSTEM_PROMPT + seg["turn_end"]
             + seg["user_pre"] + env.reset() + seg["turn_end"] + seg["gen_pre"])
     ids = tok(text, add_special_tokens=False)["input_ids"]
-    return {"env": env, "fruit": fruit, "group": group, "ids": list(ids),
+    return {"env": env, "fruit": fruit, "seed": seed, "group": group, "ids": list(ids),
             "mask": [False] * len(ids), "gen_texts": [], "actions": [], "reward": 0.0}
 
 
@@ -245,15 +247,62 @@ def grpo_step(model, ref, opt, tok, episodes, kl_coef, device):
             "grad_norm": float(gnorm)}
 
 
-def evaluate(model, tok, seg, device, n=30, batch=50):
+def evaluate(model, tok, seg, device, model_name, n=30, batch=50):
     print(f"greedy eval, {n} episodes per fruit:")
+    os.makedirs("runs", exist_ok=True)
     for fruit in EVAL_FRUITS:  # banana never appears in training
         eps = [new_episode(tok, seg, fruit, 10_000 + i, 0) for i in range(n)]
         for k in range(0, n, batch):  # chunk: n rows at once would blow the KV cache
             rollout(model, tok, seg, eps[k:k + batch], device, greedy=True)
+        # Per-episode rows: eval seeds are shared across models, so these
+        # enable paired McNemar analysis between any two checkpoints.
+        with open("runs/eval-episodes.jsonl", "a") as f:
+            for e in eps:
+                f.write(json.dumps({"model": model_name, "fruit": fruit,
+                                    "seed": e["seed"], "caught": int(e["reward"])}) + "\n")
         rate = sum(e["reward"] for e in eps) / n
         tag = " (held out)" if fruit not in TRAIN_FRUITS else ""
         print(f"  {fruit:10s} {rate:5.2f}{tag}")
+
+
+@torch.no_grad()
+def mi_diagnostic(model, tok, episodes, device):
+    """RAGEN-2-style in-batch cross-scoring. Entropy can't distinguish healthy
+    convergence from input-agnostic reasoning; traces that can't identify their
+    own inputs ARE input-agnostic. Score each turn-1 completion against every
+    sampled turn-1 prompt: retrieval accuracy = how often the true prompt wins,
+    z-score = how far the true prompt sits above the impostors."""
+    by_group = {}
+    for e in episodes:
+        by_group.setdefault(e["group"], []).append(e)
+    pools = list(by_group.values())
+    picks = []  # round-robin over groups so distinct (fruit, seed) come first
+    for depth in range(max(len(p) for p in pools)):
+        picks += [p[depth] for p in pools if depth < len(p)]
+    pairs = []
+    for e in picks[:MI_TRACES]:
+        a = e["mask"].index(True) if True in e["mask"] else len(e["mask"])
+        b = a
+        while b < len(e["mask"]) and e["mask"][b]:
+            b += 1
+        if b > a:  # atrophied-to-nothing completions can't be scored
+            pairs.append((e["ids"][:a], e["ids"][a:b]))
+    n = len(pairs)
+    if n < 2:
+        return {"mi_retrieval_acc": None, "mi_zscore": None}
+    flat = [{"ids": pairs[j][0] + pairs[i][1],
+             "mask": [False] * len(pairs[j][0]) + [True] * len(pairs[i][1])}
+            for i in range(n) for j in range(n)]
+    scores = []
+    for k in range(0, len(flat), n):  # n short rows/forward ~= one training micro-batch
+        lp, gm = batched_logprobs(tok, model, flat[k:k + n], device, grad=False)
+        scores += [float(lp[j][gm[j]].sum()) for j in range(len(flat[k:k + n]))]
+    M = torch.tensor(scores).view(n, n)  # M[i, j] = logp(completion_i | prompt_j)
+    acc = float((M.argmax(dim=1) == torch.arange(n)).float().mean())
+    off = ~torch.eye(n, dtype=torch.bool)
+    z = sum(float((M[i, i] - M[i][off[i]].mean()) / (M[i][off[i]].std(correction=0) + 1e-8))
+            for i in range(n)) / n
+    return {"mi_retrieval_acc": acc, "mi_zscore": z}
 
 
 def main():
@@ -278,8 +327,9 @@ def main():
     ap.add_argument("--seed", type=int, default=0)
     args = ap.parse_args()
 
-    device = "mps" if torch.backends.mps.is_available() else "cpu"
-    dtype = torch.bfloat16 if device == "mps" else torch.float32
+    device = ("cuda" if torch.cuda.is_available()
+              else "mps" if torch.backends.mps.is_available() else "cpu")
+    dtype = torch.float32 if device == "cpu" else torch.bfloat16
     random.seed(args.seed)
     torch.manual_seed(args.seed)
 
@@ -298,7 +348,7 @@ def main():
     if args.check_mask:
         return check_mask(model, tok, seg, device)
     if args.eval is not None:
-        return evaluate(model, tok, seg, device, n=args.eval_n)
+        return evaluate(model, tok, seg, device, load_from, n=args.eval_n)
 
     ref = AutoModelForCausalLM.from_pretrained(args.ref_model or args.model,
                                                dtype=dtype).to(device)
@@ -317,6 +367,7 @@ def main():
             episodes += [new_episode(tok, seg, fruit, seed, g)
                          for _ in range(args.group_size)]
         gstats = rollout(model, tok, seg, episodes, device)
+        mi = mi_diagnostic(model, tok, episodes, device) if step % MI_EVERY == 0 else {}
         stats = grpo_step(model, ref, opt, tok, episodes, args.kl, device)
 
         by_fruit = {}
@@ -325,12 +376,13 @@ def main():
         rec = {"step": step,
                "reward": sum(e["reward"] for e in episodes) / len(episodes),
                "reward_by_fruit": {f: sum(rs) / len(rs) for f, rs in by_fruit.items()},
-               **stats,
+               **stats, **mi,
                "gen_tokens_per_ep": gstats["gen_tokens"] / len(episodes),
                "gen_tok_per_s": gstats["gen_tokens"] / gstats["gen_time"],
                "step_seconds": time.time() - t0,
-               "mem_gb": torch.mps.driver_allocated_memory() / 2**30
-                         if device == "mps" else 0.0}
+               "mem_gb": torch.mps.driver_allocated_memory() / 2**30 if device == "mps"
+                         else torch.cuda.memory_reserved() / 2**30 if device == "cuda"
+                         else 0.0}
         print(f"step {step:4d} | reward {rec['reward']:.3f} | rstd {rec['reward_group_std']:.2f} | "
               f"ent {rec['entropy_mc']:.2f} | gnorm {rec['grad_norm']:.2f} | "
               f"kl {rec['kl']:.4f} | zero-var {rec['frac_zero_var_groups']:.2f} | "
@@ -349,6 +401,9 @@ def main():
         if device == "mps":  # release cached buffers the bucketing didn't dedupe
             gc.collect()
             torch.mps.empty_cache()
+        elif device == "cuda":
+            gc.collect()
+            torch.cuda.empty_cache()
 
 
 if __name__ == "__main__":

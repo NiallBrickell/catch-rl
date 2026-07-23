@@ -98,8 +98,13 @@ self-contained.
 Per-step JSONL logs go to `runs/log.jsonl`. Key signals (see README for
 detail): `frac_zero_var_groups` near 1.0 means no learning signal (all-0/all-1
 groups); shrinking `gen_tokens_per_ep` means the chain-of-thought is
-atrophying; a KL spike means the policy is bolting. Sample transcripts print
-every 10 steps — read them for parser-hacking/degenerate outputs.
+atrophying; a KL spike means the policy is bolting; `mi_retrieval_acc` /
+`mi_zscore` (every 10 steps, RAGEN-2-style in-batch cross-scoring) falling
+toward chance/0 means the reasoning has gone input-agnostic — an earlier
+warning than token counts. Sample transcripts print every 10 steps — read
+them for parser-hacking/degenerate outputs. Eval runs also append
+per-episode rows to `runs/eval-episodes.jsonl` (shared seeds → paired
+McNemar between any two checkpoints).
 
 ## Conventions
 
