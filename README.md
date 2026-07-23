@@ -200,6 +200,9 @@ orange, drifting the other way) that no generic story can produce; and the
 turn-1 diagnostic (`analysis/diag_name_conditioning.py`) probes aligned
 states where the fruit hasn't moved yet — a reactive policy says STAY there,
 so any name-keyed lean is the prior acting before evidence exists.
+(Verdict from run 3: the battery came back **name-blind** — everything
+converged to the same band, the turn-1 leans collapsed to zero, and the
+reason turned out to be a design lesson. See Lab notes.)
 
 Prior-art honesty: grounding LLMs through online RL and testing unseen and
 invented nouns dates to GLAM (Carta et al., 2023) — this experiment is best
@@ -232,11 +235,23 @@ single lexical axis. Design principle throughout: the *binding being
 learned* sits outside the prior; the *transfer cue* sits inside it. Both
 ingredients, or the experiment tests nothing.
 
+**Third ingredient, learned the hard way from run 3: the reward must be
+unreachable name-blind.** The catch env's drift is observable turn-to-turn
+and correctable within the horizon, so a purely reactive policy hits ≈0.95
+— and that is precisely the policy RL found, washing out even the base
+model's name-linked biases along the way (see Lab notes). Experiment 2's
+environment must therefore make anticipation *decisive*: e.g. drift that
+lands on the final fall (after the last action, so the only way to be under
+the fruit is to have committed early) or drift magnitude that outruns the
+remaining moves. Acceptance test before any training run: the scripted
+reactive ceiling must sit well below the scripted name-aware ceiling
+(target: ≤0.5 vs ≥0.9). If reactive play can reach the reward, the prior is
+dead weight and the experiment tests nothing.
+
 Other cheap experiments once the loop works:
-- **Is the CoT load-bearing?** Retrain (or just eval) with thinking forbidden —
-  format is `ACTION: X` only. If catch rates match, the reasoning was
-  decoration; if they drop, the tokens were computation.
-- Vary drift magnitude to make anticipation (not just tracking) necessary.
+- ~~**Is the CoT load-bearing?**~~ Answered incidentally by run 3: ckpt-0300
+  catches at 0.86–0.98 with literally empty `<think>` blocks. For this task,
+  at convergence, the reasoning was decoration.
 - `--kl 0` and watch the collapse happen for real. Educational carnage.
 
 ## Phase 2: the MRI plan (internals, not just outcomes)
@@ -290,6 +305,37 @@ Three interactive marimo notebooks accompany the code
   group-size toggles that demonstrate why each piece exists.
 
 ## Lab notes
+
+**2026-07-23 — run 3 (300 steps, fresh from base, M4 Max) + full battery +
+turn-1 diagnostic. The three-story question is adjudicated: story (b) wins.**
+Greedy evals, n=100/fruit, base → ckpt-0300: strawberry 0.21 → 0.98, apple
+0.08 → 0.86, orange 0.36 → 0.90, banana 0.42 → 0.86, tangerine 0.04 → 0.89,
+plum 0.21 → 0.98, **blorple 0.35 → 0.90, quorf 0.04 → 0.86**. Read that
+battery carefully: the nonce words — which *cannot* know their dynamics —
+converge to the same band as the training fruits, and tangerine (the
+misleading condition, predicted to *decrease* under name-mediated
+anticipation) posts the largest gain on the board (+0.85). Held-out mean
+0.90 vs train mean 0.91: name identity became irrelevant. The turn-1
+diagnostic agrees from the other side: the base model carries a generic
+rightward lean for every name (+0.11 to +0.42, no name structure beyond
+noise at K=72), and by ckpt-0300 every lean has collapsed to ~0 (STAY
+0.83–0.99 at aligned states — the reactive-correct answer). Training didn't
+sharpen name-conditioning; it *erased* what little name-linked bias existed.
+Meanwhile the chain-of-thought atrophied to literally empty `<think>`
+blocks (122 → 35 tok/ep; entropy 0.29 → 0.17; KL from base climbed to ~0.2)
+while rstd stayed healthy (0.24–0.33) — no collapse, just compilation:
+outcome RL distilled the policy into a name-blind reactive controller and
+threw the reasoning away. **Why this happened is the real finding:** drift
+here is observable turn-to-turn and correctable within the 5-turn horizon
+(the scripted *reactive* policy already hits ≈0.95), so the reward never
+paid a single point for using the name. The KL-cheapest solution consistent
+with the reward is name-blind, and that's exactly what GRPO found.
+Retrospectively this adjudicates run 2's banana +0.08 as story (b), a
+generic competence lift. It also answers "is the CoT load-bearing?" for
+this task: 0.86–0.98 catch rates with empty think blocks — decoration. And
+it hands Experiment 2 its missing design requirement (see that section):
+the environment must be rebuilt so that a reactive policy *caps out* below
+a name-using one, or the same washout will happen again.
 
 **2026-07-22 — run 2 (100 steps, 2 groups × G=8, ~45 s/step, M4 Max).**
 First completed run (run 1 died at step 40 to an MPS allocator pathology —

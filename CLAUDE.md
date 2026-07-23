@@ -109,8 +109,13 @@ every 10 steps — read them for parser-hacking/degenerate outputs.
   README/paper) — semantic clusters with arbitrary cluster→dynamics
   assignments *reversed across matched runs*, several seeds per assignment,
   ≥2 independent cluster pairs. ~15 training runs: a studio-week, or ~$20 of
-  rented 4090 time. Blocked only on the run-3 diagnostics (whether
-  name-conditioning exists at all shapes what Exp 2 must induce).
+  rented 4090 time. **Run-3 verdict (2026-07-23) unblocked this and added a
+  hard requirement:** the converged catch policy is name-blind (nonce words
+  hit 0.86–0.90, tangerine +0.85, turn-1 leans → 0, CoT empty) because the
+  env is reactively solvable. Exp 2's env must make anticipation decisive —
+  drift on the final fall (after the last action) or magnitude that outruns
+  remaining moves — with an acceptance test *before* training: scripted
+  reactive ceiling ≤0.5, scripted name-aware ceiling ≥0.9.
 - Later: `gym_env.py` — a Gymnasium adapter (text-serialized state vectors,
   action-repeat so the horizon stays LLM-sized, no vision). CartPole first as
   validation that 0.6B can control real physics through text at all, then

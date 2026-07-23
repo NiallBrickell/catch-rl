@@ -2,8 +2,8 @@
 
 *Do word-trained priors carry skills learned by acting?*
 
-**Status: working draft — results are preliminary (see §5). Numbers current as
-of run 2 (100 GRPO steps); run 3 (300 steps) in progress.**
+**Status: working draft — Experiment 1 complete (runs 2–3 + diagnostics);
+Experiment 2 redesign in progress (see §4).**
 
 ## Abstract
 
@@ -14,18 +14,26 @@ environment — and whether competence acquired through interaction generalizes
 along semantic lines laid down by text alone. We finetune Qwen3-0.6B with
 hand-rolled multi-turn GRPO (~400 lines of PyTorch) on a text-interfaced
 catching game: three training fruits with distinct drift dynamics, plus a
-held-out evaluation fruit — **banana** — whose name never appears in a
-training episode but whose dynamics match orange. After 100 steps, every
-training fruit improves (apple +0.26 absolute, against an adverse prior
-bias); the held-out banana improves +0.08 over its own base rate (n=100,
-~1σ) — directionally positive, but not yet separable from an across-the-board
-competence gain (train-fruit deltas ran +0.15 to +0.26); and held-out
-performance shows no evidence of task-level degradation across checkpoints,
-as expected under a KL leash at this step count. The controls that would
-make the transfer claim identifiable — nonce-word holdouts, a
-misleading-semantics condition, and a turn-1 name-conditioning diagnostic —
-are specified and running on existing checkpoints. We release the
-implementation, derivation notebooks, and the protocol.
+five-word held-out battery — a matched real word (**banana**), a
+misleading near-synonym (tangerine), a neutral word (plum), and two nonce
+words (blorple, quorf) that cannot know their own dynamics. Outcome RL
+works emphatically: by 300 steps every training fruit reaches 0.86–0.98
+from base rates as low as 0.08. But the transfer question resolves
+*negatively, and diagnostically*: the entire held-out battery — nonce words
+included, misleading condition included — converges to the same band
+(0.86–0.98), a turn-1 probe shows the policy's name-conditioned action
+biases collapsing to zero rather than sharpening, and the chain-of-thought
+atrophies to empty strings while catch rates climb. The trained policy is a
+name-blind reactive controller. The mechanism is instructive: the
+environment's drift is observable and correctable within the horizon, so
+reward never priced in the name, and KL-regularized RL found the cheapest
+policy consistent with reward — discarding both the reasoning and the
+prior's name-linked structure. We derive a design requirement for
+lexical-transfer experiments that we believe is general: alongside (1) a
+learned binding outside the prior and (2) a transfer cue inside it, (3)
+**the reward must be unreachable name-blind**, or the experiment silently
+tests reactive control. We release the implementation, derivation
+notebooks, and the protocol.
 
 ## 1. Motivation
 
@@ -127,7 +135,9 @@ across all models, n=100 episodes per fruit. The transfer metric is
 (the base policy has a marked rightward action bias), so raw-rate comparisons
 conflate prior bias with transfer.
 
-## 3. Results (run 2: 100 steps, 2 groups × G=8)
+## 3. Results
+
+### 3.1 Run 2 (100 steps, 2 groups × G=8)
 
 Greedy catch rates, n=100 per fruit:
 
@@ -170,37 +180,86 @@ Three observations:
    the final 20 steps — so run 2 is an early snapshot of an unconverged
    policy (which licenses no claim about what longer training yields).
 
+### 3.2 Run 3 (300 steps, fresh from base) and the full battery
+
+Greedy catch rates, n=100 per fruit, across the eight-word battery:
+
+| word | drift | role | base | run-2 ckpt-100 | run-3 ckpt-300 | Δ (300 − base) |
+|---|---|---|---|---|---|---|
+| strawberry | none | train | 0.21 | 0.37 | 0.98 | +0.77 |
+| apple | left | train | 0.08 | 0.34 | 0.86 | +0.78 |
+| orange | right | train | 0.36 | 0.51 | 0.90 | +0.54 |
+| banana | right | held out, matched | 0.42 | 0.50 | 0.86 | +0.44 |
+| tangerine | left | held out, misleading | 0.04 | 0.29 | 0.89 | **+0.85** |
+| plum | none | held out, neutral | 0.21 | 0.33 | 0.98 | +0.77 |
+| blorple | right | held out, nonce | 0.35 | 0.38 | 0.90 | +0.55 |
+| quorf | left | held out, nonce | 0.04 | 0.16 | 0.86 | +0.82 |
+
+The three stories of §3.1 are adjudicated, and story (b) — generic
+competence — wins outright:
+
+1. **The nonce floor rose to the ceiling.** Blorple and quorf cannot know
+   their assigned dynamics; by construction their catch rates measure what
+   name-free skill achieves. At ckpt-0300 that floor is 0.86–0.90 —
+   statistically indistinguishable from the training fruits. Held-out mean
+   0.90 vs train mean 0.91. Whatever the policy learned, the name
+   contributes nothing to it.
+2. **The misleading condition failed to mislead.** Tangerine — semantically
+   adjacent to orange, carrying opposite dynamics, the one word for which
+   name-mediated anticipation predicts a *decrement* — posts the largest
+   gain on the board (+0.85). Name-mediated anticipation is absent exactly
+   where it would have been most visible.
+3. **Turn-1 name-conditioning collapsed rather than sharpened.** At aligned
+   states (fruit over basket; the reactive-correct action is STAY), the
+   base model leans rightward for *every* name (P(RIGHT)−P(LEFT) between
+   +0.11 and +0.42, K=72 per word — a generic directional bias with no
+   name structure beyond the ±0.08 noise floor). At ckpt-0300 every lean
+   is within noise of zero and STAY probability is 0.83–0.99. Training did
+   not teach the policy to use names; it erased the name-adjacent bias the
+   base model had.
+4. **The chain-of-thought atrophied to nothing while performance climbed.**
+   Generated tokens per episode fell 122 → 35 (minimum 20), entropy
+   0.29 → 0.17, and late-run transcripts contain literally empty `<think>`
+   blocks — bare `ACTION:` emissions — at 0.86–0.98 catch rates. Group
+   reward-std stayed healthy throughout (0.24–0.33): this is not collapse
+   but *compilation*. KL from base rose to ≈0.2 — the policy paid a real
+   KL price, and spent it deleting the reasoning and the base model's
+   action biases, not building name-keyed structure.
+
+**Why it happened — the finding we take forward.** The environment's drift
+is observable turn-to-turn and correctable within the five-turn horizon: a
+scripted policy that merely chases the fruit's *observed* trajectory
+already catches ≈0.95. The reward therefore never paid anything for
+knowing what a tangerine is. Under a KL leash, the cheapest policy
+consistent with the reward is a name-blind reactive controller, and that
+is what GRPO found — a small, clean instance of reward-shaped Occam:
+optimization routes around the prior whenever the prior is not needed to
+earn the reward. The negative result is thus not "language priors don't
+carry acquired skill"; it is "this reward never asked them to." Which
+yields the third design ingredient, stated in §4.
+
+Two incidental positives: no evidence of task-level erosion anywhere in
+the battery (every word ends far above base), and the "is the CoT
+load-bearing?" question answered itself for this task — at convergence,
+the reasoning was decoration.
+
 ## 4. Planned analyses
 
-**Immediate diagnostics (running on existing checkpoints, ahead of longer
-training — these determine what the numbers in §3 mean):**
+**Remaining analyses on existing checkpoints:**
 
-- **Turn-1 name-conditioning.** On turn 1 the fruit has not moved; drift is
-  unobservable, so any action-distribution difference across names at
-  identical positions is name-conditioned anticipation. Preemptive rightward
-  lean for orange (and possibly banana) and leftward lean for apple is
-  direct evidence the policy uses the word; the nonce names should stay
-  neutral (they calibrate the diagnostic's noise floor). Identical
-  distributions across names would show no detectable conditioning *in
-  these states* — reframing a null banana result as expected rather than
-  ambiguous, though it cannot rule out name effects expressed only in
-  states we did not probe.
-- **The holdout battery** (evaluated on existing checkpoints): banana (real,
-  matched), plum (real, neutral), blorple/quorf (nonce, matched/opposed),
-  and **tangerine** — semantically adjacent to orange but carrying apple's
-  dynamics. A *decrement* on tangerine relative to base is the single most
-  diagnostic outcome available: neither generic competence nor
-  concentration-on-priors predicts it; only name-mediated anticipation does.
-  Interpretive note on the nonce words: blorple and quorf *cannot know their
-  secret dynamics* — their catch rates measure the generic-skill floor (and
-  their first-action distributions should be name-neutral, calibrating the
-  diagnostic's noise level), not failed transfer.
 - **Paired analysis.** Evaluation seeds are shared across all models, so
   base-vs-checkpoint comparisons should be paired per episode (McNemar)
-  rather than marginal — substantially tighter at the same n.
+  rather than marginal — substantially tighter at the same n. (Requires
+  per-episode eval logging, a small trainer change.)
 - **Base-model pass@k** on the task, separating RL creating competence from
-  RL concentrating probability mass on already-reachable behavior — the
-  story most available for banana specifically (§3.3c).
+  RL concentrating probability mass on already-reachable behavior. Run 3's
+  near-ceiling convergence makes this less load-bearing than it was for
+  run 2's marginal deltas, but it still calibrates how much of the skill
+  pre-existed in the sampling distribution.
+- **Checkpoint erosion curve** over run 3's fifteen checkpoints (evals in
+  progress), overlaid with the logged KL-from-base — locating *when* the
+  turn-1 biases washed out and whether the CoT atrophy and the KL rise are
+  the same event.
 
 **Second wave:**
 
@@ -225,11 +284,16 @@ training — these determine what the numbers in §3 mean):**
   mapping reversal from run-to-run variance), and **replication across ≥2
   independent semantic cluster pairs** (e.g. heavy/light and fast/slow
   clusters), so the result does not rest on one lexical axis.
-- **Longer training** (run 3, 300 steps, in progress) with the collapse
-  dashboard active; larger eval n for the banana–orange delta comparison;
-  a first-action analysis on banana episodes (leading rightward before any
-  drift has been observed would indicate name-based borrowing rather than
-  in-episode evidence).
+  **New requirement from run 3 — the third ingredient:** the environment
+  must make the reward unreachable name-blind. Concretely: dynamics must be
+  decisive but unobservable-in-time — e.g. the drift lands on the final
+  fall, after the last action, so only a policy that committed early (on
+  the basis of the name) is under the object when it arrives; or drift
+  magnitude that outruns the remaining moves. Acceptance test before any
+  training run: scripted reactive ceiling ≤0.5 while the scripted
+  name-aware ceiling stays ≥0.9. Run 3 is the demonstration of what
+  happens otherwise: if reactive play reaches the reward, RL finds it,
+  and the experiment silently stops being about language.
 - **No-prior baseline:** a small policy network on raw state, trained with
   the identical loss — it learns the task easily and cannot transfer by
   construction. (The nonce-name and shuffled-pairing controls formerly
@@ -258,16 +322,20 @@ training — these determine what the numbers in §3 mean):**
 
 ## 5. Limitations
 
-One seed, one model size, one toy environment with five-step horizons and a
-three-word action space; the headline transfer delta is within noise at
-current n; the environment's dynamics are simple enough that "anticipate
-drift" may be learnable as a shallow feature rather than anything deserving
-the word *physics*. The claim under test is correspondingly narrow: not that
-language models understand the physical world, but that when interaction
-teaches a language-shaped policy a sensorimotor regularity, the language
-prior is the medium through which that regularity generalizes to novel
-descriptions. The experiment is designed so that either answer — transfer or
-slot-filling — is a result.
+One seed per run, one model size, one toy environment with five-step
+horizons and a three-word action space; the environment's dynamics are
+simple enough that "anticipate drift" may be learnable as a shallow feature
+rather than anything deserving the word *physics*. The turn-1 probe covers
+aligned states only — it cannot rule out name effects expressed solely in
+states we did not probe, though the battery's convergence makes such
+effects behaviorally inert here. And Experiment 1's negative is a negative
+about *this reward structure*, not about language priors: a task solvable
+without the name cannot test whether skill travels through the name. The
+claim under test remains narrow: not that language models understand the
+physical world, but that when interaction teaches a language-shaped policy
+a sensorimotor regularity, the language prior is the medium through which
+that regularity generalizes to novel descriptions. Experiment 1 established
+the instruments and the failure mode; Experiment 2 carries the claim.
 
 A stronger title — *Language Is All You Need to Catch* — sits in a drawer,
 reserved for the day P1 clears significance. Titles, like claims, should be
