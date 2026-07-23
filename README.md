@@ -331,6 +331,23 @@ Three interactive marimo notebooks accompany the code
 
 ## Lab notes
 
+**2026-07-23 — Experiment 2 pilot (pair 1, assignment A: rock-cluster lands
+true, butterfly-cluster shifts +2; 100 steps, 2×G=8, M4 Max).** Purpose was
+operational — does G=8 get gradient through the sparser reward? Yes:
+zero-variance fraction bounced 0.2–0.6, never pinned. Battery (greedy,
+n=100, base → ckpt-0100): every straight-landing word improved — rock
++0.18, held-out stone +0.24, granite +0.09, and nonce cromlet +0.12 — and
+every shifted word stayed on the floor, *including trained butterfly*
+(+0.03; feather −0.07, moth +0.04, torgim −0.05). Clean reading: 100 steps
+bought better name-blind tracking (catches whatever lands where it fell,
+nonce included) and no name→shift binding yet, even for the trained word.
+The env's box is holding — reactive play is worth ~0.5 and nothing more.
+Also notable: under the v2 prompt the policy is terse from step 1 (~27
+tok/ep, near-bare ACTION lines), so any name-use that develops will be
+silent in the weights — the turn-1 probe and battery carry the detection
+load, as designed. Next: run 4, same config, 400 steps (v1's transition
+started ~step 160; 100 steps was never the real attempt).
+
 **2026-07-23 — run 3 (300 steps, fresh from base, M4 Max) + full battery +
 turn-1 diagnostic. The three-story question is adjudicated: story (b) wins.**
 Greedy evals, n=100/fruit, base → ckpt-0300: strawberry 0.21 → 0.98, apple
