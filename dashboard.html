@@ -120,7 +120,7 @@
   <span class="stat"><b id="stAge">—</b><span>last update</span></span>
   <span class="stat"><b id="stSps">—</b><span>s / step</span></span>
   <span class="grow"></span>
-  <label class="toggle"><input type="checkbox" id="smoothCk"> smooth (EMA)</label>
+  <label class="toggle"><input type="checkbox" id="smoothCk" checked> smooth (EMA)</label>
   <button id="pauseBtn">pause</button>
   <span id="status"><span class="dot"></span><span id="statusTxt">live</span></span>
 </div>
@@ -152,7 +152,7 @@ const SVG = "http://www.w3.org/2000/svg";
 /* ---------------- state ---------------- */
 const state = {
   runs: [], runId: null, rows: [], evals: null,
-  paused: false, smooth: false, stale: false,
+  paused: false, smooth: true, stale: false,
   ageAtFetch: null, fetchedAt: 0,
 };
 let views = [];   // per-panel render handles, rebuilt each render
