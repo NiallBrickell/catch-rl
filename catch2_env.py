@@ -33,13 +33,19 @@ BOTTOM = 5   # the basket's row; the object lands when it reaches this row
 TURNS = 5    # decision turns per episode (object falls rows 0 -> 5)
 SHIFT = 2    # landing shift, applied after the final action
 
-# Provisional clusters (final word lists pend the embedding-validation
-# report): pair 1 is a heavy/light axis, pair 2 fast/slow. Per pair, train
-# on ONE member of each cluster; siblings are held out for the transfer
-# probe, and the nonce words floor what name-free skill achieves.
-PAIR1 = (["rock", "anvil", "brick"], ["feather", "leaf", "petal"])
-PAIR2 = (["rocket", "bullet", "arrow"], ["snail", "slug", "tortoise"])
-NONCE = ["zeph", "grolt"]
+# Clusters validated against Qwen3-0.6B's input-embedding space (within-
+# cluster cosine must clearly beat cross-cluster for every word; no shared
+# subword pieces across opposite clusters; no Exp-1 collisions). Pair 1 is
+# a heavy/light axis (within 0.324 vs cross 0.074), pair 2 fast/slow
+# (0.202 vs 0.114 — genuinely looser; fast/slow cuts across taxonomy).
+# Notable rejections: anvil and petal failed their own-cluster margins,
+# and "rocket" is a superstring of "rock". Nonce words sit an order of
+# magnitude below within-cluster similarity to either cluster. Per pair,
+# train on ONE member of each cluster; siblings are held out for the
+# transfer probe, and the nonce words floor what name-free skill achieves.
+PAIR1 = (["rock", "stone", "granite"], ["feather", "moth", "butterfly"])
+PAIR2 = (["missile", "bullet", "jet"], ["tortoise", "turtle", "worm"])
+NONCE = ["cromlet", "torgim"]
 
 
 def make_shift_map(zero_cluster, shift_cluster, nonce_shifts=None):
