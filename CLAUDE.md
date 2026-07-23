@@ -21,6 +21,7 @@ and predictions; `paper/draft.md` carries positioning and results.
 
 ```bash
 uv run python catch_env.py            # env self-test: scripted-policy catch rates
+uv run python catch2_env.py           # Exp 2 env acceptance test: reactive <=0.5, oracle >=0.9 — must PASS before training on it
 uv run python train.py --check-mask   # verify the gradient mask is exact
 uv run python train.py --steps 100    # train (logs → runs/log.jsonl, ckpt → runs/ckpt-NNNN every 20 steps)
 uv run python train.py --eval         # greedy catch-rate table incl. banana (base model)
@@ -34,9 +35,16 @@ else CPU (float32).
 
 ## Architecture
 
-Two files. `catch_env.py` is the environment (7 columns, 5 turns, plain-text
-observations; drift applies after the fall on turns 2 and 4). `train.py` is
-everything else, in four pieces:
+Two core files plus the Exp 2 env. `catch_env.py` is the Experiment 1
+environment (7 columns, 5 turns, plain-text observations; drift applies
+after the fall on turns 2 and 4 — observable, hence run 3's reactive
+washout). `catch2_env.py` is the Experiment 2 environment: no observable
+drift at all; the object lands +2 columns keyed to its name-cluster on the
+final fall, after the last action, so the name is the only channel to the
+reward. The cluster→shift assignment is a constructor argument
+(`make_shift_map`) — counterbalancing lives in configs, not code. Its
+`__main__` is the acceptance test and must PASS after any change to it.
+`train.py` is everything else, in four pieces:
 
 1. **Chat-format glue (`derive_segments`)** — Qwen3's chat template strips
    earlier turns' `<think>` blocks on re-render, so re-templating mid-episode
@@ -122,7 +130,11 @@ every 10 steps — read them for parser-hacking/degenerate outputs.
   env is reactively solvable. Exp 2's env must make anticipation decisive —
   drift on the final fall (after the last action) or magnitude that outruns
   remaining moves — with an acceptance test *before* training: scripted
-  reactive ceiling ≤0.5, scripted name-aware ceiling ≥0.9.
+  reactive ceiling ≤0.5, scripted name-aware ceiling ≥0.9. **Built
+  (2026-07-23): `catch2_env.py`, acceptance PASS (reactive 0.500, oracle
+  1.000).** Remaining before the fleet: finalize cluster word lists
+  (embedding validation), wire word/assignment configs into train.py, pilot
+  run on the studio to size G against sparser early reward.
 - Later: `gym_env.py` — a Gymnasium adapter (text-serialized state vectors,
   action-repeat so the horizon stays LLM-sized, no vision). CartPole first as
   validation that 0.6B can control real physics through text at all, then

@@ -248,6 +248,18 @@ reactive ceiling must sit well below the scripted name-aware ceiling
 (target: ≤0.5 vs ≥0.9). If reactive play can reach the reward, the prior is
 dead weight and the experiment tests nothing.
 
+**Status: the v2 environment exists and passes.** `catch2_env.py`
+implements the final-fall shift (object drops straight through every
+observed row, then lands `+2` columns keyed to its name-cluster, after the
+last action — zero in-episode evidence, magnitude 2 so hedging one column
+off catches nothing). Acceptance test (`uv run python catch2_env.py`):
+scripted reactive 0.500 — it catches the straight cluster at 1.000 and the
+shifted cluster at 0.000 — scripted name-aware oracle 1.000. The
+cluster→shift assignment is a constructor argument (`make_shift_map`), so
+a counterbalanced run pair is two configs, not two envs. Next: a pilot run
+to size G against the sparser early reward (a reactive policy earns ~0.5
+here, so shifted-cluster groups will be all-fail more often than v1's).
+
 Other cheap experiments once the loop works:
 - ~~**Is the CoT load-bearing?**~~ Answered incidentally by run 3: ckpt-0300
   catches at 0.86–0.98 with literally empty `<think>` blocks. For this task,
