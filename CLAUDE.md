@@ -26,6 +26,7 @@ uv run python train.py --check-mask   # verify the gradient mask is exact
 uv run python train.py --steps 100    # train (logs → runs/log.jsonl, ckpt → runs/ckpt-NNNN every 20 steps)
 uv run python train.py --eval         # greedy catch-rate table incl. banana (base model)
 uv run python train.py --eval runs/ckpt-0100   # same, from a checkpoint
+uv run python train.py --exp2-pair 1 --exp2-assign A --steps 100   # Experiment 2: pair-1 clusters, assignment A (second cluster shifts); --eval takes the same flags
 ```
 
 There is no test suite or linter; `--check-mask` and the env self-test are the

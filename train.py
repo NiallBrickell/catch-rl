@@ -19,6 +19,7 @@ import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from catch_env import CatchEnv, TRAIN_FRUITS, EVAL_FRUITS, TURNS
+import catch2_env
 
 SYSTEM_PROMPT = """You are playing a fruit-catching game on a grid with 7 columns, numbered 0 to 6.
 A fruit starts at row 0 and falls one row after each of your moves. Your basket is at row 5.
@@ -30,6 +31,39 @@ ACTION: LEFT
 ACTION: RIGHT
 ACTION: STAY
 LEFT moves your basket one column toward 0, RIGHT one column toward 6."""
+
+SYSTEM_PROMPT_EXP2 = """You are playing an object-catching game on a grid with 7 columns, numbered 0 to 6.
+An object starts at row 0 and falls one row after each of your moves. Your basket is at row 5.
+You catch the object if your basket is in the object's column when the object reaches row 5.
+Different objects may shift sideways at the last moment as they land. The shift happens
+after your final move, so you will not see it coming: you have to anticipate it.
+Each turn, think briefly (a sentence or two), then answer on a final line with exactly one of:
+ACTION: LEFT
+ACTION: RIGHT
+ACTION: STAY
+LEFT moves your basket one column toward 0, RIGHT one column toward 6."""
+
+# Which experiment this process runs: env constructor, word lists, system
+# prompt. Default is Experiment 1; --exp2-pair/--exp2-assign swap in the
+# Exp 2 env under one counterbalanced assignment. Mutated once, in main().
+EXP = {"make_env": CatchEnv, "train": TRAIN_FRUITS, "eval": EVAL_FRUITS,
+       "system": SYSTEM_PROMPT}
+
+# One trained member per cluster, fixed across assignments so matched runs
+# differ ONLY in dynamics. Members chosen for embedding-margin strength
+# (see analysis/cluster-validation.md).
+EXP2_TRAIN = {1: ["rock", "butterfly"], 2: ["bullet", "tortoise"]}
+
+
+def exp2_config(pair, assign):
+    a, b = catch2_env.PAIR1 if pair == 1 else catch2_env.PAIR2
+    zero, shifted = (a, b) if assign == "A" else (b, a)
+    smap = catch2_env.make_shift_map(zero, shifted,
+                                     {"cromlet": 0, "torgim": catch2_env.SHIFT})
+    return {"make_env": lambda w, s: catch2_env.Catch2Env(w, s, smap),
+            "train": EXP2_TRAIN[pair], "eval": a + b + catch2_env.NONCE,
+            "system": SYSTEM_PROMPT_EXP2}
+
 
 ACTION_RE = re.compile(r"ACTION:\s*(LEFT|RIGHT|STAY)")
 MICRO = 2  # episodes per training forward; bounds the logits tensor (~150k vocab)
@@ -74,8 +108,8 @@ def derive_segments(tok):
 
 
 def new_episode(tok, seg, fruit, seed, group):
-    env = CatchEnv(fruit, seed)
-    text = (seg["sys_pre"] + SYSTEM_PROMPT + seg["turn_end"]
+    env = EXP["make_env"](fruit, seed)
+    text = (seg["sys_pre"] + EXP["system"] + seg["turn_end"]
             + seg["user_pre"] + env.reset() + seg["turn_end"] + seg["gen_pre"])
     ids = tok(text, add_special_tokens=False)["input_ids"]
     return {"env": env, "fruit": fruit, "seed": seed, "group": group, "ids": list(ids),
@@ -250,7 +284,7 @@ def grpo_step(model, ref, opt, tok, episodes, kl_coef, device):
 def evaluate(model, tok, seg, device, model_name, n=30, batch=50):
     print(f"greedy eval, {n} episodes per fruit:")
     os.makedirs("runs", exist_ok=True)
-    for fruit in EVAL_FRUITS:  # banana never appears in training
+    for fruit in EXP["eval"]:  # held-out words never appear in training
         eps = [new_episode(tok, seg, fruit, 10_000 + i, 0) for i in range(n)]
         for k in range(0, n, batch):  # chunk: n rows at once would blow the KV cache
             rollout(model, tok, seg, eps[k:k + batch], device, greedy=True)
@@ -261,7 +295,7 @@ def evaluate(model, tok, seg, device, model_name, n=30, batch=50):
                 f.write(json.dumps({"model": model_name, "fruit": fruit,
                                     "seed": e["seed"], "caught": int(e["reward"])}) + "\n")
         rate = sum(e["reward"] for e in eps) / n
-        tag = " (held out)" if fruit not in TRAIN_FRUITS else ""
+        tag = " (held out)" if fruit not in EXP["train"] else ""
         print(f"  {fruit:10s} {rate:5.2f}{tag}")
 
 
@@ -325,7 +359,19 @@ def main():
     ap.add_argument("--eval-n", type=int, default=30,
                     help="episodes per fruit in --eval (100+ for real claims)")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--exp2-pair", type=int, choices=[1, 2], default=None,
+                    help="run Experiment 2 on this cluster pair (needs --exp2-assign)")
+    ap.add_argument("--exp2-assign", choices=["A", "B"], default=None,
+                    help="counterbalanced assignment: which cluster gets the "
+                         "landing shift (A: pair's second cluster, B: first)")
     args = ap.parse_args()
+
+    assert (args.exp2_pair is None) == (args.exp2_assign is None), \
+        "--exp2-pair and --exp2-assign go together"
+    if args.exp2_pair is not None:
+        EXP.update(exp2_config(args.exp2_pair, args.exp2_assign))
+        print(f"Experiment 2: pair {args.exp2_pair}, assignment {args.exp2_assign}, "
+              f"train {EXP['train']}")
 
     device = ("cuda" if torch.cuda.is_available()
               else "mps" if torch.backends.mps.is_available() else "cpu")
@@ -361,7 +407,7 @@ def main():
     for step in range(1, args.steps + 1):
         t0, episodes = time.time(), []
         for g in range(args.groups):  # one (fruit, seed) per group; cycle fruits
-            fruit = TRAIN_FRUITS[fruit_i % len(TRAIN_FRUITS)]
+            fruit = EXP["train"][fruit_i % len(EXP["train"])]
             fruit_i += 1
             seed = rng.randrange(1_000_000)
             episodes += [new_episode(tok, seg, fruit, seed, g)

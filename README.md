@@ -264,9 +264,14 @@ off catches nothing). Acceptance test (`uv run python catch2_env.py`):
 scripted reactive 0.500 — it catches the straight cluster at 1.000 and the
 shifted cluster at 0.000 — scripted name-aware oracle 1.000. The
 cluster→shift assignment is a constructor argument (`make_shift_map`), so
-a counterbalanced run pair is two configs, not two envs. Next: a pilot run
-to size G against the sparser early reward (a reactive policy earns ~0.5
-here, so shifted-cluster groups will be all-fail more often than v1's).
+a counterbalanced run pair is two configs, not two envs. The trainer is
+wired: `uv run python train.py --exp2-pair 1 --exp2-assign A` trains on
+one validated member per cluster (rock + butterfly for pair 1; see
+`analysis/cluster-validation.md` for how the word lists were chosen and
+what got rejected), holding out the four sibling words plus two fresh
+nonce words (cromlet, torgim). Next: a pilot run to size G against the
+sparser early reward (a reactive policy earns ~0.5 here, so
+shifted-cluster groups will be all-fail more often than v1's).
 
 Other cheap experiments once the loop works:
 - ~~**Is the CoT load-bearing?**~~ Answered incidentally by run 3: ckpt-0300
