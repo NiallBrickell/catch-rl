@@ -1,0 +1,486 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>catch-rl · training monitor</title>
+<style>
+  /* Palette per the dataviz reference instance; light + dark are each
+     selected sets, validated against their own surface. */
+  :root {
+    color-scheme: light dark;
+    --page: #f9f9f7; --surface: #fcfcfb;
+    --ink: #0b0b0b; --ink2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,.10);
+    --c1: #2a78d6; --c2: #eb6834; --c3: #1baf7a; --c4: #eda100;
+    --c5: #e87ba4; --c6: #008300; --c7: #4a3aa7; --c8: #e34948;
+    --good: #0ca30c; --crit: #d03b3b;
+    --wash: 42, 120, 214;           /* --c1 as r,g,b for heat washes */
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --page: #0d0d0d; --surface: #1a1a19;
+      --ink: #ffffff; --ink2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,.10);
+      --c1: #3987e5; --c2: #d95926; --c3: #199e70; --c4: #c98500;
+      --c5: #d55181; --c6: #008300; --c7: #9085e9; --c8: #e66767;
+      --good: #0ca30c; --crit: #d03b3b;
+      --wash: 57, 135, 229;
+    }
+  }
+  * { box-sizing: border-box; margin: 0; }
+  body {
+    background: var(--page); color: var(--ink);
+    font: 13px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+    padding: 14px 16px 40px;
+  }
+  h1 { font-size: 15px; font-weight: 600; letter-spacing: .01em; }
+  .sub { color: var(--muted); font-size: 11px; }
+
+  /* ---- control row (one row, above everything it scopes) ---- */
+  #bar {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px;
+    padding-bottom: 12px;
+  }
+  #bar .grow { flex: 1; }
+  select, button {
+    font: inherit; color: var(--ink); background: var(--surface);
+    border: 1px solid var(--border); border-radius: 6px; padding: 3px 8px;
+  }
+  button { cursor: pointer; }
+  button:hover { border-color: var(--axis); }
+  label.toggle { display: inline-flex; align-items: center; gap: 5px; color: var(--ink2); cursor: pointer; }
+  .stat { display: inline-flex; flex-direction: column; line-height: 1.2; }
+  .stat b { font-size: 14px; font-weight: 600; }
+  .stat span { font-size: 10px; color: var(--muted); }
+  #status { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--ink2); }
+  #status .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--good); }
+  #status.paused .dot { background: var(--muted); }
+  #status.stale .dot { background: var(--crit); }
+
+  /* ---- panel grid ---- */
+  #grid {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 10px 6px; min-width: 0;
+  }
+  .card.dimmed { opacity: .55; }          /* refetch keeps the frame */
+  .card .head { display: flex; align-items: baseline; gap: 8px; }
+  .card .head .t { font-weight: 600; font-size: 12px; }
+  .card .head .readout {
+    margin-left: auto; font-variant-numeric: tabular-nums;
+    font-size: 11px; color: var(--ink2); white-space: nowrap;
+  }
+  .card .head .readout b { color: var(--ink); font-weight: 600; }
+  .card .cap { font-size: 10.5px; color: var(--muted); margin: 1px 0 2px; }
+  .card svg { display: block; width: 100%; }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 10.5px; color: var(--ink2); padding-top: 2px; }
+  .legend .key { display: inline-flex; align-items: center; gap: 4px; }
+  .legend .key i { width: 12px; height: 2px; border-radius: 1px; display: inline-block; }
+  .empty { color: var(--muted); padding: 30px 10px; text-align: center; grid-column: 1 / -1; }
+
+  /* ---- tooltip ---- */
+  #tip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.15); padding: 5px 8px; font-size: 11px;
+    font-variant-numeric: tabular-nums; max-width: 240px;
+  }
+  #tip .step { color: var(--muted); font-size: 10px; padding-bottom: 2px; }
+  #tip .row { display: flex; align-items: center; gap: 6px; }
+  #tip .row i { width: 10px; height: 2px; border-radius: 1px; flex: none; }
+  #tip .row b { font-weight: 600; }
+  #tip .row span { color: var(--ink2); }
+
+  /* ---- eval table ---- */
+  #evals { margin-top: 22px; }
+  #evals h2 { font-size: 13px; font-weight: 600; margin-bottom: 2px; }
+  #evals .none { color: var(--muted); font-size: 11.5px; }
+  table { border-collapse: collapse; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 3px 10px; text-align: right; font-size: 12px; border-bottom: 1px solid var(--grid); }
+  th { color: var(--ink2); font-weight: 600; }
+  td:first-child, th:first-child { text-align: left; font-weight: 500; }
+  th.held { font-style: italic; }
+  th.held::after { content: " †"; color: var(--muted); font-style: normal; }
+  .heldsep { border-left: 1px solid var(--axis); }
+</style>
+</head>
+<body>
+
+<div id="bar">
+  <div>
+    <h1>catch-rl · training monitor</h1>
+    <div class="sub">GRPO on Qwen3-0.6B — collapse signals in warning order</div>
+  </div>
+  <select id="runSel" aria-label="run"></select>
+  <span class="stat"><b id="stStep">—</b><span>step</span></span>
+  <span class="stat"><b id="stAge">—</b><span>last update</span></span>
+  <span class="stat"><b id="stSps">—</b><span>s / step</span></span>
+  <span class="grow"></span>
+  <label class="toggle"><input type="checkbox" id="smoothCk"> smooth (EMA)</label>
+  <button id="pauseBtn">pause</button>
+  <span id="status"><span class="dot"></span><span id="statusTxt">live</span></span>
+</div>
+
+<div id="grid"></div>
+<div id="evals"></div>
+<div id="tip"></div>
+
+<script>
+"use strict";
+
+/* ---------------- panel definitions — README's warning order ---------------- */
+const PANELS = [
+  { key: "reward", title: "reward", cap: "mean episode reward — the LAST signal to move; thin lines: per-fruit", domain: [0, 1], perFruit: true },
+  { key: "reward_group_std", title: "rstd", cap: "within-group reward std — earliest warning; 0 below reward ceiling = premature convergence" },
+  { key: "entropy_mc", title: "entropy_mc", cap: "MC entropy of sampled tokens — falling fast while reward is flat buys nothing" },
+  { key: "grad_norm", title: "grad_norm", cap: "pre-clip gradient norm — spikes arrive late; by then, reload a checkpoint" },
+  { key: "frac_zero_var_groups", title: "frac_zero_var_groups", cap: "all-0/all-1 groups — sitting near 1.0 = no learning signal at all", domain: [0, 1.02], refs: [{ y: 1, label: "1.0 = no signal" }] },
+  { key: "gen_tokens_per_ep", title: "gen_tokens_per_ep", cap: "generated tokens per episode — trending to the floor = CoT atrophy" },
+  { key: "kl", title: "kl", cap: "k3 KL vs frozen reference — a slow rise is learning; a spike is the policy bolting" },
+  { key: "mem_gb", title: "mem_gb", cap: "process memory — logits re-forward is the spike" },
+  { key: "mi_retrieval_acc", title: "mi_retrieval_acc", cap: "in-batch cross-scoring, every 10 steps — falling toward chance = input-agnostic reasoning", domain: [0, 1], dots: true, refs: [{ y: 0.125, label: "chance (1/8)" }] },
+  { key: "mi_zscore", title: "mi_zscore", cap: "own-prompt z-score, every 10 steps — toward 0 = the reasoning is a template", dots: true, refs: [{ y: 0, label: "0 = input-agnostic" }] },
+];
+const FRUIT_SLOTS = ["var(--c2)", "var(--c3)", "var(--c4)", "var(--c5)", "var(--c6)", "var(--c7)", "var(--c8)"];
+const FALLBACK_TRAINED = ["strawberry", "apple", "orange"];
+const SVG = "http://www.w3.org/2000/svg";
+
+/* ---------------- state ---------------- */
+const state = {
+  runs: [], runId: null, rows: [], evals: null,
+  paused: false, smooth: false, stale: false,
+  ageAtFetch: null, fetchedAt: 0,
+};
+let views = [];   // per-panel render handles, rebuilt each render
+
+/* ---------------- tiny DOM/SVG helpers ---------------- */
+function el(tag, attrs, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") n.className = v; else n.setAttribute(k, v);
+  }
+  for (const k of kids) n.append(k);   // strings become text nodes — never innerHTML
+  return n;
+}
+function svg(tag, attrs) {
+  const n = document.createElementNS(SVG, tag);
+  for (const [k, v] of Object.entries(attrs || {})) n.setAttribute(k, v);
+  return n;
+}
+function fmt(v) {
+  if (v == null || !isFinite(v)) return "—";
+  const a = Math.abs(v);
+  if (a >= 1000) return v.toFixed(0);
+  if (a >= 100) return v.toFixed(1);
+  if (a >= 1) return v.toFixed(2);
+  return v.toFixed(3);
+}
+function fmtAge(s) {
+  if (s == null) return "—";
+  if (s < 90) return Math.round(s) + "s ago";
+  if (s < 5400) return Math.round(s / 60) + "m ago";
+  if (s < 172800) return (s / 3600).toFixed(1) + "h ago";
+  return Math.round(s / 86400) + "d ago";
+}
+function niceTicks(lo, hi, n) {
+  if (!(hi > lo)) return [lo];
+  const span = hi - lo, step0 = span / n, mag = Math.pow(10, Math.floor(Math.log10(step0)));
+  const step = [1, 2, 2.5, 5, 10].map(m => m * mag).find(s => span / s <= n + 0.5) || mag * 10;
+  const out = [];
+  for (let t = Math.ceil(lo / step) * step; t <= hi + 1e-9; t += step) out.push(+t.toPrecision(12));
+  return out;
+}
+function ema(pts, span) {
+  const a = 2 / (span + 1), out = []; let m = null;
+  for (const [x, y] of pts) { m = m == null ? y : a * y + (1 - a) * m; out.push([x, m]); }
+  return out;
+}
+
+/* ---------------- data fetch ---------------- */
+async function getJSON(url) {
+  const r = await fetch(url, { cache: "no-store" });
+  if (!r.ok) throw new Error(url + " → " + r.status);
+  return r.json();
+}
+async function refresh(keepFrame) {
+  try {
+    const { runs } = await getJSON("/api/runs");
+    state.runs = runs || [];
+    if (!state.runs.find(r => r.id === state.runId)) state.runId = state.runs[0] ? state.runs[0].id : null;
+    renderRunSel();
+    if (state.runId) {
+      const enc = encodeURIComponent(state.runId);
+      const [rows, evals] = await Promise.all([
+        getJSON("/api/log?run=" + enc), getJSON("/api/evals?run=" + enc),
+      ]);
+      state.rows = Array.isArray(rows) ? rows : [];
+      state.evals = evals;
+      const meta = state.runs.find(r => r.id === state.runId);
+      state.ageAtFetch = meta ? meta.age_s : null;
+      state.fetchedAt = Date.now();
+    } else {
+      state.rows = []; state.evals = null; state.ageAtFetch = null;
+    }
+    state.stale = false;
+    render();
+  } catch (e) {                      // server restarted mid-poll, network blip…
+    state.stale = true;              // keep the previous frame, dimmed
+    document.querySelectorAll(".card").forEach(c => c.classList.add("dimmed"));
+  }
+  renderStatus();
+}
+
+/* ---------------- header / controls ---------------- */
+function renderRunSel() {
+  const sel = document.getElementById("runSel");
+  sel.replaceChildren(...state.runs.map(r =>
+    el("option", { value: r.id }, `${r.name} · ${r.steps} steps · ${fmtAge(r.age_s)}`)));
+  if (state.runId) sel.value = state.runId;
+  if (!state.runs.length) sel.append(el("option", {}, "no runs found"));
+}
+function renderStatus() {
+  const st = document.getElementById("status"), txt = document.getElementById("statusTxt");
+  st.className = state.stale ? "stale" : state.paused ? "paused" : "";
+  txt.textContent = state.stale ? "unreachable — retrying" : state.paused ? "paused" : "live";
+  const last = state.rows[state.rows.length - 1];
+  document.getElementById("stStep").textContent = last ? last.step : "—";
+  document.getElementById("stSps").textContent = last && last.step_seconds != null ? last.step_seconds.toFixed(1) : "—";
+  const age = state.ageAtFetch == null ? null : state.ageAtFetch + (Date.now() - state.fetchedAt) / 1000;
+  document.getElementById("stAge").textContent = fmtAge(age);
+}
+
+/* ---------------- panels ---------------- */
+function seriesFor(cfg, rows) {
+  const out = [];
+  if (cfg.perFruit) {
+    const fruits = [];
+    for (const r of rows) for (const f of Object.keys(r.reward_by_fruit || {}))
+      if (!fruits.includes(f)) fruits.push(f);
+    fruits.sort();
+    fruits.forEach((f, i) => out.push({
+      name: f, color: i < FRUIT_SLOTS.length ? FRUIT_SLOTS[i] : "var(--muted)", width: 1, dim: true,
+      pts: rows.filter(r => r.reward_by_fruit && r.reward_by_fruit[f] != null && isFinite(r.reward_by_fruit[f]))
+               .map(r => [r.step, r.reward_by_fruit[f]]),
+    }));
+  }
+  out.push({    // main series last = drawn on top
+    name: cfg.perFruit ? "overall" : cfg.title, color: "var(--c1)", width: 2, main: true,
+    pts: rows.filter(r => r[cfg.key] != null && isFinite(r[cfg.key])).map(r => [r.step, r[cfg.key]]),
+  });
+  return out;
+}
+
+function renderPanel(cfg, rows, xdom, container) {
+  const card = el("div", { class: "card" });
+  const readout = el("span", { class: "readout" });
+  card.append(
+    el("div", { class: "head" }, el("span", { class: "t" }, cfg.title), readout),
+    el("div", { class: "cap" }, cfg.cap),
+  );
+  container.append(card);
+
+  const series = seriesFor(cfg, rows).filter(s => s.pts.length);
+  const W = Math.max(220, card.clientWidth - 20), H = 128;
+  const M = { t: 8, r: 16, b: 16, l: 38 };
+  const node = svg("svg", { width: W, height: H, viewBox: `0 0 ${W} ${H}`, role: "img" });
+  card.append(node);
+
+  if (!series.length) {
+    const t = svg("text", { x: W / 2, y: H / 2, "text-anchor": "middle", "font-size": 11, fill: "var(--muted)" });
+    t.textContent = cfg.dots ? "no data yet (logged every 10 steps)" : "no data in this log";
+    node.append(t);
+    return;
+  }
+
+  // scales — x shared across all panels, y per panel
+  let lo = cfg.domain ? cfg.domain[0] : Infinity, hi = cfg.domain ? cfg.domain[1] : -Infinity;
+  if (!cfg.domain) {
+    for (const s of series) for (const [, y] of s.pts) { if (y < lo) lo = y; if (y > hi) hi = y; }
+    for (const ref of cfg.refs || []) { if (ref.y < lo) lo = ref.y; if (ref.y > hi) hi = ref.y; }
+    if (lo === hi) { lo -= 0.5; hi += 0.5; }
+    const pad = (hi - lo) * 0.07;
+    if (lo >= 0 && lo < 0.35 * hi) lo = 0; else lo -= pad;
+    hi += pad;
+  }
+  const x = s => M.l + (s - xdom[0]) / Math.max(1, xdom[1] - xdom[0]) * (W - M.l - M.r);
+  const y = v => H - M.b - (v - lo) / (hi - lo) * (H - M.t - M.b);
+
+  // recessive grid: solid hairlines + y tick labels; x tick labels only
+  for (const t of niceTicks(lo, hi, 3)) {
+    node.append(svg("line", { x1: M.l, x2: W - M.r, y1: y(t), y2: y(t), stroke: "var(--grid)", "stroke-width": 1 }));
+    const lb = svg("text", { x: M.l - 5, y: y(t) + 3, "text-anchor": "end", "font-size": 9.5, fill: "var(--muted)", style: "font-variant-numeric:tabular-nums" });
+    lb.textContent = fmt(t);
+    node.append(lb);
+  }
+  for (const t of niceTicks(xdom[0], xdom[1], 4)) {
+    const lb = svg("text", { x: x(t), y: H - 4, "text-anchor": "middle", "font-size": 9.5, fill: "var(--muted)", style: "font-variant-numeric:tabular-nums" });
+    lb.textContent = t;
+    node.append(lb);
+  }
+
+  // reference / annotation lines (dashed, so they never read as gridlines)
+  for (const ref of cfg.refs || []) {
+    node.append(svg("line", { x1: M.l, x2: W - M.r, y1: y(ref.y), y2: y(ref.y), stroke: "var(--muted)", "stroke-width": 1, "stroke-dasharray": "4 3" }));
+    const lb = svg("text", { x: W - M.r - 2, y: y(ref.y) - 3, "text-anchor": "end", "font-size": 9, fill: "var(--muted)" });
+    lb.textContent = ref.label;
+    node.append(lb);
+  }
+
+  // marks
+  for (const s of series) {
+    if (cfg.dots && s.main) {
+      for (const [px, py] of s.pts)
+        node.append(svg("circle", { cx: x(px), cy: y(py), r: 4, fill: s.color, stroke: "var(--surface)", "stroke-width": 2 }));
+    } else {
+      const d = pts => "M" + pts.map(([px, py]) => `${x(px).toFixed(1)} ${y(py).toFixed(1)}`).join("L");
+      const rawOpacity = state.smooth && !cfg.dots ? (s.main ? 0.3 : 0.25) : (s.dim ? 0.75 : 1);
+      node.append(svg("path", { d: d(s.pts), fill: "none", stroke: s.color, "stroke-width": state.smooth ? 1 : s.width, "stroke-linejoin": "round", "stroke-linecap": "round", opacity: rawOpacity }));
+      if (state.smooth && s.pts.length > 2)
+        node.append(svg("path", { d: d(ema(s.pts, 10)), fill: "none", stroke: s.color, "stroke-width": s.width, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    }
+  }
+
+  // baseline axis
+  node.append(svg("line", { x1: M.l, x2: W - M.r, y1: H - M.b, y2: H - M.b, stroke: "var(--axis)", "stroke-width": 1 }));
+
+  // crosshair (hidden until hover)
+  const cross = svg("line", { y1: M.t, y2: H - M.b, stroke: "var(--axis)", "stroke-width": 1, visibility: "hidden" });
+  node.append(cross);
+
+  // legend only when the panel has ≥2 series
+  if (series.length > 1) {
+    card.append(el("div", { class: "legend" }, ...series.slice().reverse().map(s =>
+      el("span", { class: "key" }, el("i", { style: `background:${s.color}` }), s.name))));
+  }
+
+  const byStep = series.map(s => new Map(s.pts.map(p => [p[0], p[1]])));
+  const view = { cfg, card, node, cross, readout, x, series, byStep, M, W, H };
+  views.push(view);
+  setReadout(view, null);   // latest value by default
+
+  node.addEventListener("pointermove", ev => {
+    const r = node.getBoundingClientRect();
+    const px = (ev.clientX - r.left) * (W / r.width);
+    const frac = Math.min(1, Math.max(0, (px - M.l) / (W - M.l - M.r)));
+    const step = nearestStep(xdom[0] + frac * (xdom[1] - xdom[0]));
+    if (step != null) hoverAll(step, view, ev);
+  });
+  node.addEventListener("pointerleave", clearHover);
+}
+
+let allSteps = [];
+function nearestStep(target) {
+  if (!allSteps.length) return null;
+  let best = allSteps[0];
+  for (const s of allSteps) if (Math.abs(s - target) < Math.abs(best - target)) best = s;
+  return best;
+}
+function nearestIn(map, step) {           // sparse series (mi_*): closest logged step
+  if (map.has(step)) return map.get(step);
+  let bd = Infinity, bv = null;
+  for (const [s, v] of map) { const d = Math.abs(s - step); if (d < bd) { bd = d; bv = v; } }
+  return bd <= 5 ? bv : null;
+}
+function setReadout(view, step) {
+  const main = view.byStep[view.byStep.length - 1];
+  let s = step, v;
+  if (s == null) {                         // latest available
+    const pts = view.series[view.series.length - 1].pts;
+    const lastPt = pts[pts.length - 1];
+    s = lastPt ? lastPt[0] : null; v = lastPt ? lastPt[1] : null;
+  } else v = nearestIn(main, s);
+  view.readout.replaceChildren(el("span", {}, s == null ? "" : `s${s} `), el("b", {}, fmt(v)));
+}
+function hoverAll(step, hovered, ev) {
+  for (const v of views) {
+    v.cross.setAttribute("x1", v.x(step)); v.cross.setAttribute("x2", v.x(step));
+    v.cross.setAttribute("visibility", "visible");
+    setReadout(v, step);
+  }
+  const tip = document.getElementById("tip");
+  const rows = hovered.series.map((s, i) => ({ s, v: nearestIn(hovered.byStep[i], step) }))
+                             .filter(r => r.v != null).reverse();   // main first
+  tip.replaceChildren(
+    el("div", { class: "step" }, "step " + step),
+    ...rows.map(r => el("div", { class: "row" },
+      el("i", { style: `background:${r.s.color}` }), el("b", {}, fmt(r.v)), el("span", {}, r.s.name))));
+  tip.style.display = "block";
+  const tw = tip.offsetWidth;
+  tip.style.left = Math.min(window.innerWidth - tw - 8, ev.clientX + 14) + "px";
+  tip.style.top = (ev.clientY + 14) + "px";
+}
+function clearHover() {
+  document.getElementById("tip").style.display = "none";
+  for (const v of views) { v.cross.setAttribute("visibility", "hidden"); setReadout(v, null); }
+}
+
+/* ---------------- eval table ---------------- */
+function renderEvals() {
+  const box = document.getElementById("evals");
+  box.replaceChildren();
+  const ev = state.evals;
+  if (!ev || !ev.models || !ev.models.length) {
+    box.append(el("h2", {}, "eval battery"),
+      el("div", { class: "none" }, "no eval-episodes.jsonl beside this log — run `uv run python train.py --eval [ckpt]`"));
+    return;
+  }
+  const trained = new Set();
+  for (const r of state.rows) for (const f of Object.keys(r.reward_by_fruit || {})) trained.add(f);
+  if (!trained.size) FALLBACK_TRAINED.forEach(f => trained.add(f));
+  const fruits = ev.fruits.slice().sort((a, b) => (trained.has(b) ? 1 : 0) - (trained.has(a) ? 1 : 0));
+  const firstHeld = fruits.findIndex(f => !trained.has(f));
+  const sepCls = i => (i === firstHeld ? " heldsep" : "");
+  const head = el("tr", {}, el("th", {}, "model"),
+    ...fruits.map((f, i) => el("th", { class: (trained.has(f) ? "" : "held") + sepCls(i) }, f)));
+  const body = ev.models.map(m => el("tr", {}, el("td", {}, m), ...fruits.map((f, i) => {
+    const cell = (ev.rates[m] || {})[f];
+    const td = el("td", { class: sepCls(i).trim() }, cell ? cell.rate.toFixed(2) : "—");
+    if (cell) {
+      td.title = `${m} · ${f}: ${cell.rate.toFixed(2)} over ${cell.n} episodes`;
+      td.style.background = `rgba(var(--wash), ${(cell.rate * 0.38).toFixed(3)})`;  // sequential wash, values printed in ink
+    }
+    return td;
+  })));
+  const n0 = Object.values(ev.rates[ev.models[0]] || {})[0];
+  box.append(el("h2", {}, "eval battery — greedy catch rate"),
+    el("div", { class: "sub" }, `† held out (never trained) · ${n0 ? n0.n : "?"} episodes per cell, shared seeds`),
+    el("div", { style: "overflow-x:auto" }, el("table", {}, head, ...body)));
+}
+
+/* ---------------- top-level render ---------------- */
+function render() {
+  const grid = document.getElementById("grid");
+  grid.replaceChildren();
+  views = [];
+  allSteps = state.rows.map(r => r.step).filter(s => s != null);
+  if (!allSteps.length) {
+    grid.append(el("div", { class: "empty" }, state.runId ? "no parseable steps in this log yet — waiting for training output" : "no runs found under --root"));
+  } else {
+    const xdom = [Math.min(...allSteps), Math.max(...allSteps)];
+    for (const cfg of PANELS) renderPanel(cfg, state.rows, xdom, grid);
+  }
+  renderEvals();
+  renderStatus();
+}
+
+/* ---------------- wiring ---------------- */
+document.getElementById("runSel").addEventListener("change", e => { state.runId = e.target.value; refresh(); });
+document.getElementById("smoothCk").addEventListener("change", e => { state.smooth = e.target.checked; render(); });
+document.getElementById("pauseBtn").addEventListener("click", () => {
+  state.paused = !state.paused;
+  document.getElementById("pauseBtn").textContent = state.paused ? "resume" : "pause";
+  renderStatus();
+});
+let resizeT;
+window.addEventListener("resize", () => { clearTimeout(resizeT); resizeT = setTimeout(render, 150); });
+window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", render);
+setInterval(() => { if (!state.paused) refresh(); }, 10_000);
+setInterval(renderStatus, 1000);
+refresh();
+</script>
+</body>
+</html>
