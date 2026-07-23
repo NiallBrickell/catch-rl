@@ -100,6 +100,13 @@ every 10 steps — read them for parser-hacking/degenerate outputs.
   History is the changelog; small frequent commits over big silent ones.
 - **Docs travel with code.** Any design or behavior change updates README.md
   and this file in the same commit.
+- **Findings trigger a literature re-check, before the write-up.** Whenever
+  a run produces a result (positive, negative, or weird), search for prior
+  documentation of the phenomenon *first* and cite it in the same commit
+  that records the finding — nothing goes in the README/paper as an
+  observation if it's actually a replication. (Instituted after run 3's
+  CoT atrophy was written up a day before connecting it to RAGEN/RAGEN-2,
+  which had documented the failure family.)
 - `runs/` (logs, model checkpoints) is gitignored — record notable results by
   writing them into the README/commit messages, not by committing checkpoints.
 

@@ -238,6 +238,28 @@ earn the reward. The negative result is thus not "language priors don't
 carry acquired skill"; it is "this reward never asked them to." Which
 yields the third design ingredient, stated in §4.
 
+**Relation to documented failure modes.** Neither half of this outcome is
+novel in isolation, and it matters to say so. The CoT atrophy is the
+phenomenon RAGEN (Wang et al. 2025) reports across simple multi-turn
+environments at comparable model scales — "without fine-grained,
+reasoning-aware reward signals, agent reasoning hardly emerges" — and
+RAGEN-2 (2026) observes reasoning length declining monotonically across
+all eight of its environments, with collapse arriving precisely "when
+tasks become solvable via template strategies." Our diagnostics place run
+3 on RAGEN-2's *healthy* branch rather than in the pathological one:
+their echo-trap/template-collapse signature is reward-variance collapse
+with degrading performance, whereas our group reward-std stayed at
+0.24–0.33 and performance rose to ceiling — task mastery discarding
+computation it no longer needs, consistent with the simplicity bias
+toward shorter CoT as accuracy improves (Wu et al. 2025). The
+name-blindness, meanwhile, is the lexical analogue of input-channel
+shortcut learning documented in multimodal RL — policies that learn to
+stop reading an input channel (there, the image; here, the noun) when
+reward is attainable from another channel. What Experiment 1 adds is the
+conjunction: a transfer experiment whose *instrument* (the held-out-word
+battery) detected its own reward's failure to price in the channel under
+test — which is exactly what the battery was for.
+
 Two incidental positives: no evidence of task-level erosion anywhere in
 the battery (every word ends far above base), and the "is the CoT
 load-bearing?" question answered itself for this task — at convergence,
@@ -260,6 +282,14 @@ the reasoning was decoration.
   progress), overlaid with the logged KL-from-base — locating *when* the
   turn-1 biases washed out and whether the CoT atrophy and the KL rise are
   the same event.
+- **A mutual-information reasoning diagnostic for Experiment 2's
+  dashboard.** RAGEN-2 shows entropy alone cannot distinguish healthy
+  convergence from template collapse (reasoning can stay diverse within an
+  input while going input-*agnostic*); their in-batch cross-scoring proxy —
+  score each reasoning trace's likelihood against every prompt in the
+  batch, measure whether traces identify their own inputs — needs only the
+  rollout data we already have, and would have flagged run 3's CoT
+  deletion far earlier than the token-count trend did.
 
 **Second wave:**
 
@@ -350,4 +380,8 @@ al. 2023); TWOSOME (Tan et al. 2024); LLaRP (Szot et al. 2024);
 Hutsebaut-Buysse, Mets & Latré 2020 (embedding-mediated goal transfer);
 Hanjie et al. 2021 (entity–dynamics grounding); "Language Representations
 for Generalization in RL" (PMLR 157, 2021); RT-2 (Brohan et al. 2023);
-Schulman 2020 (KL estimators).)*
+Schulman 2020 (KL estimators); RAGEN-2 (arXiv:2604.06268, template
+collapse & MI diagnostics); GTR (Wei et al. 2025, arXiv:2503.08525,
+thought collapse); Wu et al. 2025 (arXiv:2502.07266, CoT simplicity
+bias); arXiv:2606.22043 (reward strength and input-channel shortcuts);
+Geirhos et al. 2020 (shortcut learning).)*
