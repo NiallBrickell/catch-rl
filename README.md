@@ -276,6 +276,17 @@ keeps shift 2; `--exp2-shift 1` exists as a later ablation (same 0.5
 reactive box, denser accidental wins) to separate signal-density effects
 from exploration-pressure effects if needed.
 
+**Reading the counterbalance (A = congruent assignment: light cluster
+drifts; B = incongruent: rock cluster drifts).** Given run 6's probe shows
+the A-split, assignment B's outcome decides the story:
+
+| B outcome | reading |
+|---|---|
+| rock-cluster learns its shift, stone/granite inherit | **Semantic routing of an arbitrary binding** — travels the lexicon regardless of congruence (the headline claim) |
+| trained rock learns, siblings don't inherit | Congruence gates *transfer*, not learning — the prior mediates generalization only |
+| rock-cluster barely learns the shift at all | The prior gates what reward can teach — RL-finetuning is congruence-limited (a different, equally publishable claim) |
+| feather-cluster drifts anyway despite B's training | The prior dominates reward — "transfer" was prior-unlocking all along |
+
 **Status: the v2 environment exists and passes.** `catch2_env.py`
 implements the final-fall shift (object drops straight through every
 observed row, then lands `+2` columns keyed to its name-cluster, after the
@@ -350,6 +361,30 @@ Three interactive marimo notebooks accompany the code
   group-size toggles that demonstrate why each piece exists.
 
 ## Lab notes
+
+**2026-07-24 — run 6 (Exp 2, assignment A, shift 2, --ent-bonus 0.02) —
+first name-conditioned behavior, mid-run probe.** The entropy bonus
+changed the dynamics qualitatively: entropy_exact *rises* (0.29 → 0.38 by
+step 120), CoT length rises (74 → 159 tok/ep — the model talks again),
+zero-var groups at record lows, and butterfly's sampled reward climbs in
+lockstep with rock instead of flatlining. A reboot killed the run at step
+~124 (see the one-model-at-a-time convention — that outage was
+self-inflicted by a concurrent eval); greedy probe of the surviving
+ckpt-0120 (n=50, shared seeds → paired): **butterfly 0.32, held-out
+feather 0.32, moth 0.30 — vs shifted nonce torgim 0.10**, all four
+identical (0.19) at base. Same dynamics, same spawns; the ~4σ (pooled)
+split is carried entirely by what the word *is*, and it extends to
+cluster members never seen in training. First genuine name-conditioning
+of the project, and it appeared at the trained word's *siblings*.
+Essential caveat: assignment A is the semantically congruent one —
+"light things drift" is corpus physics — so this may be reward unlocking
+a congruent prior rather than an arbitrary binding traveling the lexicon.
+Assignment B (rocks shift, feathers fall true) is queued as the decisive
+control; the four-way outcome table in the Experiment 2 section says what
+each result would mean. Straight side of the probe: rock 0.42 > stone
+0.30 > granite 0.20 = cromlet 0.20 — possibly inheritance ordered by
+embedding proximity to the trained word (rock~stone 0.50, rock~granite
+0.32); n=50 is too small to lean on, the final n=100 eval will say.
 
 **2026-07-24 — run 4 (Exp 2, pair 1, assignment A, shift 2, 400 steps,
 2×G=8).** The box held all the way to convergence pressure — and revealed
