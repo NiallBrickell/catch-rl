@@ -345,7 +345,7 @@ the reasoning was decoration.
   the name determines only whether catching pays +1 or −1. Any name-blind
   policy nets exactly 0 on a balanced mix; catch-treats-dodge-stings nets
   0.5. Counterbalanced as before — and because valence is the densest
-  prior text carries, the incongruent assignment (grapes sting, wasps
+  prior text carries, the incongruent assignment (desserts sting, vipers
   reward) is the strongest prior-vs-reward conflict this design can
   stage. Two free measurements: avoidance onset lag (negative bindings
   only receive gradient when a sting is actually caught, so

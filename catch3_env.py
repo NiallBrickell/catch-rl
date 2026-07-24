@@ -20,10 +20,10 @@ avoidance ("how many stings does it take?") is itself a measurement.
 
 Valence is assigned per CLUSTER and counterbalanced across runs: in the
 congruent assignment the sting-cluster words hurt (as the corpus already
-says); in the incongruent one the grapes sting and the wasps are treats.
-Text priors about valence are the strongest priors language has — the
-incongruent arm is the harshest prior-vs-reward fight this project can
-stage. Word lists pend embedding validation (see analysis/).
+says); in the incongruent one the desserts sting and the vipers are
+treats. Text priors about valence are the strongest priors language has —
+the incongruent arm is the harshest prior-vs-reward fight this project
+can stage.
 
 Acceptance test (run this file): best name-blind scripted policy <= 0.05
 mean reward; name-aware oracle >= 0.45.
@@ -35,10 +35,17 @@ WIDTH = 7    # columns 0..6
 BOTTOM = 5   # the basket's row; the object lands when it reaches this row
 TURNS = 5    # decision turns per episode (object falls rows 0 -> 5)
 
-# Provisional clusters (final lists pend the Exp 3 embedding validation).
-TREAT = ["grape", "cherry", "melon"]
-STING = ["wasp", "hornet", "bee"]
-NONCE = ["zellik", "vantrix"]  # validated runners-up from the Exp 2 audit
+# Clusters validated against Qwen3-0.6B's embedding space (see
+# analysis/exp3-cluster-validation.md). The intuitive pair {grape, cherry,
+# melon} vs {wasp, hornet, bee} FAILS outright (cross > within): "bee"
+# lives in the treat field (bee~honey 0.357), "wasp" tokenizes on the
+# generic ' was' piece, and fruit-treats would blur into Exp 1's fruit
+# battery. Desserts vs venomous animals dominate the search; this set has
+# gap +0.171, min margin +0.111, every word correctly signed on the
+# good/bad valence axis, and zero collisions with Exp 1/2 words.
+TREAT = ["candy", "cake", "cookie"]
+STING = ["viper", "scorpion", "snake"]
+NONCE = ["zellik", "vantrix"]  # Exp 2 audit runners-up, re-verified vs these clusters
 
 
 def make_valence_map(plus_cluster, minus_cluster, nonce_valence=None):

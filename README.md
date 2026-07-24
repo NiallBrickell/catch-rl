@@ -318,8 +318,13 @@ exactly 0 on a balanced mix; catch-treats-dodge-stings nets 0.5
 (acceptance test: PASS, name-blind +0.000 / oracle +0.500). Counterbalance
 as ever: in assignment A the stings sting (congruent — and valence is the
 *strongest* prior text has; the corpus is thin on tangerine drift but
-saturated with wasp stings); in B the grapes sting and the wasps are
-treats — the harshest prior-vs-reward fight this rig can stage. Train on
+saturated with snakebites); in B the desserts sting and the vipers are
+treats — the harshest prior-vs-reward fight this rig can stage. Words
+validated the hard way (`analysis/exp3-cluster-validation.md`): the
+intuitive {grape, cherry, melon} vs {wasp, hornet, bee} pair *fails* —
+bee lives in the treat field next to honey — so the battery is
+{candy, cake, cookie} vs {viper, scorpion, snake}, every word
+correctly signed on the good/bad embedding axis. Train on
 one word per cluster (`--exp3-assign A|B`), battery = held-out siblings +
 nonces, same four-way outcome table as Exp 2. Two bonus measurements come
 free: **avoidance onset lag** (avoid-bindings only get gradient when a

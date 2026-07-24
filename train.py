@@ -79,7 +79,7 @@ LEFT moves your basket one column toward 0, RIGHT one column toward 6."""
 
 # One trained member per cluster, fixed across assignments (same principle
 # as EXP2_TRAIN): matched runs differ only in which cluster stings.
-EXP3_TRAIN = ["grape", "wasp"]
+EXP3_TRAIN = ["cake", "viper"]
 
 
 def exp3_config(assign):
@@ -425,7 +425,7 @@ def main():
     ap.add_argument("--exp3-assign", choices=["A", "B"], default=None,
                     help="Experiment 3 (valence routing): which cluster is the "
                          "treat (A: congruent — treats reward, stings hurt; "
-                         "B: reversed)")
+                         "B: reversed — desserts sting, vipers reward)")
     args = ap.parse_args()
 
     assert (args.exp2_pair is None) == (args.exp2_assign is None), \
