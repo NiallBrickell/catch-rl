@@ -199,11 +199,17 @@ def check_mask(model, tok, seg, device):
 # policy gradient actually comes from.
 # ---------------------------------------------------------------------------
 
-def batched_logprobs(tok, model, episodes, device, grad):
+def batched_logprobs(tok, model, episodes, device, grad, entropy=False):
     """Right-pad a micro-batch, one forward, per-token logprob of each token
     actually in the sequence. logits[:, t] scores token t+1, hence the shift;
     the returned mask is likewise shifted so it selects predictions OF
-    generated tokens (this off-by-one is a classic silent bug)."""
+    generated tokens (this off-by-one is a classic silent bug).
+
+    entropy=True additionally returns the EXACT per-position entropy of the
+    policy's next-token distribution (differentiable, straight from the
+    log-softmax we already hold) -- used by the optional entropy bonus. This
+    is a change to the OBJECTIVE, not to sampling: generation stays at raw
+    temperature 1, so the sampled-vs-learned distribution invariant holds."""
     maxlen = bucket(max(len(e["ids"]) for e in episodes))
     ids = torch.full((len(episodes), maxlen), tok.pad_token_id, dtype=torch.long)
     attn = torch.zeros_like(ids)
@@ -218,10 +224,11 @@ def batched_logprobs(tok, model, episodes, device, grad):
         logits = model(input_ids=ids, attention_mask=attn, use_cache=False).logits[:, :-1]
         logp = torch.log_softmax(logits.float(), dim=-1)
         tok_logp = logp.gather(-1, ids[:, 1:].unsqueeze(-1)).squeeze(-1)  # [B, L-1]
-    return tok_logp, gmask[:, 1:]
+        ent = -(logp.exp() * logp).sum(-1) if entropy else None  # [B, L-1]
+    return tok_logp, gmask[:, 1:], ent
 
 
-def grpo_step(model, ref, opt, tok, episodes, kl_coef, device):
+def grpo_step(model, ref, opt, tok, episodes, kl_coef, device, ent_coef=0.0):
     # Advantage = reward minus the group's mean reward. The group shares one
     # (fruit, seed), so the mean is a baseline for the SAME initial state:
     # "did this rollout do better than my siblings on this exact episode?"
@@ -253,10 +260,12 @@ def grpo_step(model, ref, opt, tok, episodes, kl_coef, device):
     opt.zero_grad()
     N, tot_loss, tot_kl = len(episodes), 0.0, 0.0
     ent_sum, ent_n = 0.0, 0  # -logp of sampled tokens = MC estimate of entropy
+    ent_exact_sum, ent_exact_n = 0.0, 0
     for k in range(0, N, MICRO):  # micro-batch: the [B, L, 150k] logits are the memory hog
         chunk = episodes[k:k + MICRO]
-        tok_logp, gm = batched_logprobs(tok, model, chunk, device, grad=True)
-        ref_logp, _ = batched_logprobs(tok, ref, chunk, device, grad=False)
+        tok_logp, gm, ent = batched_logprobs(tok, model, chunk, device, grad=True,
+                                             entropy=ent_coef > 0)
+        ref_logp, _, _ = batched_logprobs(tok, ref, chunk, device, grad=False)
         loss = torch.zeros((), device=device)
         for j, e in enumerate(chunk):
             lp = tok_logp[j][gm[j]]          # logprobs of this episode's sampled tokens
@@ -268,17 +277,29 @@ def grpo_step(model, ref, opt, tok, episodes, kl_coef, device):
             delta = ref_logp[j][gm[j]].detach() - lp
             k3 = delta.exp() - delta - 1.0   # k3 KL estimator: unbiased-ish, always >= 0
             loss = loss + (-e["adv"] * lp.mean() + kl_coef * k3.mean()) / N
+            if ent_coef > 0:
+                # Entropy bonus: pay the policy to keep the sampled positions'
+                # distributions open. This is the exploration knob -- it slows
+                # the concentration that starves rare-win consolidation (run 4)
+                # -- and it opposes the KL leash by construction; watch both.
+                He = ent[j][gm[j]]
+                loss = loss - ent_coef * He.mean() / N
+                ent_exact_sum += float(He.detach().sum())
+                ent_exact_n += He.numel()
             tot_kl += k3.mean().item() / N
         tot_loss += loss.item()
         loss.backward()  # grads accumulate across micro-batches
     # Pre-clip gradient norm: RAGEN's third early-warning signal (spikes).
     gnorm = torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
     opt.step()
-    return {"loss": tot_loss, "kl": tot_kl,
-            "frac_zero_var_groups": zero_var / len(groups),
-            "reward_group_std": r_std,
-            "entropy_mc": ent_sum / max(ent_n, 1),
-            "grad_norm": float(gnorm)}
+    stats = {"loss": tot_loss, "kl": tot_kl,
+             "frac_zero_var_groups": zero_var / len(groups),
+             "reward_group_std": r_std,
+             "entropy_mc": ent_sum / max(ent_n, 1),
+             "grad_norm": float(gnorm)}
+    if ent_exact_n:
+        stats["entropy_exact"] = ent_exact_sum / ent_exact_n
+    return stats
 
 
 def evaluate(model, tok, seg, device, model_name, n=30, batch=50):
@@ -329,7 +350,7 @@ def mi_diagnostic(model, tok, episodes, device):
             for i in range(n) for j in range(n)]
     scores = []
     for k in range(0, len(flat), n):  # n short rows/forward ~= one training micro-batch
-        lp, gm = batched_logprobs(tok, model, flat[k:k + n], device, grad=False)
+        lp, gm, _ = batched_logprobs(tok, model, flat[k:k + n], device, grad=False)
         scores += [float(lp[j][gm[j]].sum()) for j in range(len(flat[k:k + n]))]
     M = torch.tensor(scores).view(n, n)  # M[i, j] = logp(completion_i | prompt_j)
     acc = float((M.argmax(dim=1) == torch.arange(n)).float().mean())
@@ -346,6 +367,10 @@ def main():
     ap.add_argument("--group-size", type=int, default=6)
     ap.add_argument("--lr", type=float, default=2e-6)
     ap.add_argument("--kl", type=float, default=0.02)
+    ap.add_argument("--ent-bonus", type=float, default=0.0,
+                    help="entropy-bonus coefficient (exact differentiable entropy "
+                         "on sampled positions); exploration pressure without "
+                         "touching the sampler — see grpo_step")
     ap.add_argument("--model", default="Qwen/Qwen3-0.6B",
                     help="policy init: base model or a runs/ckpt-NNNN to resume from")
     ap.add_argument("--ref-model", default=None,
@@ -418,7 +443,8 @@ def main():
                          for _ in range(args.group_size)]
         gstats = rollout(model, tok, seg, episodes, device)
         mi = mi_diagnostic(model, tok, episodes, device) if step % MI_EVERY == 0 else {}
-        stats = grpo_step(model, ref, opt, tok, episodes, args.kl, device)
+        stats = grpo_step(model, ref, opt, tok, episodes, args.kl, device,
+                          ent_coef=args.ent_bonus)
 
         by_fruit = {}
         for e in episodes:

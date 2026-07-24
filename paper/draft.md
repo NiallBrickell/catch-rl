@@ -324,15 +324,22 @@ the reasoning was decoration.
   name-aware ceiling stays ≥0.9. Run 3 is the demonstration of what
   happens otherwise: if reactive play reaches the reward, RL finds it,
   and the experiment silently stops being about language. A first 400-step
-  Exp 2 run then surfaced a **fourth ingredient — the gap must be
-  reachable**: at shift magnitude 2 the behavior between the name-blind
-  optimum and the name-using one earns exactly zero, and exploration never
-  crossed that desert (the trained shifted word sat at 0.11 at step 400
-  while every straight-landing word, nonce included, cleared 0.7 — a
-  perfect name-blind tracker, boxed as designed but unable to escape).
-  Magnitude 1 preserves the identical 0.5 reactive box while placing the
-  name-using policy one action-noise step from the reactive one; magnitude
-  2 becomes a curriculum target once binding exists at 1.
+  Exp 2 run then surfaced a **fourth ingredient — rare wins must be able
+  to consolidate**. The run converged to a perfect name-blind tracker
+  (every straight-landing word ≥0.72, nonce included; every shifted word
+  ≤0.11, *the trained one included*), and the training log rules out the
+  tempting "exploration desert" reading: the shifted word's sampled reward
+  held at 0.11–0.15 throughout — roughly one positively-rewarded episode
+  per group, ~400 across the run — and the greedy policy still never
+  moved. The wins arrived and failed to bind: each lucky catch is a
+  different trajectory (incoherent gradient), the straight cluster
+  supplies a dense coherent gradient, the KL leash taxes drift, and
+  falling entropy shrinks the exploration budget precisely as the tracker
+  sharpens. The remedy that preserves the environment's bite is
+  training-side: an entropy bonus (exact differentiable entropy at
+  sampled positions; the sampler is untouched, so the on-policy invariant
+  holds) to sustain exploration pressure while the name accumulates
+  credit.
 - **No-prior baseline:** a small policy network on raw state, trained with
   the identical loss — it learns the task easily and cannot transfer by
   construction. (The nonce-name and shuffled-pairing controls formerly

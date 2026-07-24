@@ -256,17 +256,25 @@ reactive ceiling must sit well below the scripted name-aware ceiling
 (target: ≤0.5 vs ≥0.9). If reactive play can reach the reward, the prior is
 dead weight and the experiment tests nothing.
 
-**Fourth ingredient, learned from run 4: the name-using behavior must be
-reachable by exploration from the name-blind optimum.** A reward gap is
-necessary but not sufficient — at shift magnitude 2, the behavior between
-"stand at c" (the reactive optimum) and "stand at c+2" (the name-using
-one) earns exactly zero, and 400 steps of temperature-1 exploration never
-crossed that desert: the trained shifted word ended at 0.11 while every
-straight word cleared 0.7. Shift magnitude 1 keeps the identical 0.5
-reactive box (the basket must match the landing column exactly; there is
-no hedge) while placing the name-using policy one action-noise step away.
-`--exp2-shift` selects the magnitude; if binding forms at 1, magnitude 2
-becomes a curriculum question, not a wall.
+**Fourth ingredient, learned from run 4 (and then corrected): rare wins
+must be able to consolidate.** A reward gap is necessary but not
+sufficient. The first reading of run 4 was an "exploration desert" — the
+behavior between "stand at c" and "stand at c+2" earns zero, so the far
+basin is never even sampled. The training log falsifies the strong
+version: butterfly's *sampled* reward sat at 0.11–0.15 all run (≈ one
+caught-butterfly episode per group, ~400 positively-rewarded examples),
+yet the greedy policy never moved. The wins arrived; they didn't
+*consolidate*. Each lucky catch is a different wobble path (incoherent
+gradient), the straight cluster supplies a dense coherent gradient
+pulling the other way, the KL leash taxes any drift, and the policy's
+falling entropy shrinks the wobble budget over time. So the fix is a
+trainer knob, not an env concession: an **entropy bonus** (`--ent-bonus`,
+exact differentiable entropy on sampled positions — the sampler stays
+untouched, so the sampled-vs-learned invariant holds) keeps exploration
+pressure alive long enough for the name to soak up the credit. The env
+keeps shift 2; `--exp2-shift 1` exists as a later ablation (same 0.5
+reactive box, denser accidental wins) to separate signal-density effects
+from exploration-pressure effects if needed.
 
 **Status: the v2 environment exists and passes.** `catch2_env.py`
 implements the final-fall shift (object drops straight through every
@@ -355,8 +363,13 @@ reward 0.23 → 0.69 while butterfly pinned at 0.11–0.15 (one transient
 flicker to ~0.25 near step 110–130 that died). One intriguing wrinkle:
 rock (0.89) beat its held-out siblings (0.72, ~3σ) — a possible trained-
 word-specific effect worth revisiting once any binding exists to compare
-against. Diagnosis: exploration desert, not representational failure — see
-the fourth ingredient above. Next: run 5, identical but shift 1.
+against. Diagnosis (corrected same day): NOT a pure exploration desert —
+butterfly's sampled reward was 0.11–0.15 throughout, so ~400 positive
+examples arrived and failed to consolidate against the straight cluster's
+coherent gradient + the KL tax + falling entropy. See the fourth
+ingredient above. Next: run 6 — shift stays 2, add `--ent-bonus 0.02`
+(watch `entropy_exact`: the bonus should hold it up; if it keeps falling
+by ~step 100, the coefficient is too small).
 
 **2026-07-23 — Experiment 2 pilot (pair 1, assignment A: rock-cluster lands
 true, butterfly-cluster shifts +2; 100 steps, 2×G=8, M4 Max).** Purpose was
