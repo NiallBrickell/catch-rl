@@ -20,6 +20,7 @@ from transformers import AutoModelForCausalLM, AutoTokenizer
 
 from catch_env import CatchEnv, TRAIN_FRUITS, EVAL_FRUITS, TURNS
 import catch2_env
+import catch3_env
 
 SYSTEM_PROMPT = """You are playing a fruit-catching game on a grid with 7 columns, numbered 0 to 6.
 A fruit starts at row 0 and falls one row after each of your moves. Your basket is at row 5.
@@ -63,6 +64,34 @@ def exp2_config(pair, assign, shift=catch2_env.SHIFT):
     return {"make_env": lambda w, s: catch2_env.Catch2Env(w, s, smap),
             "train": EXP2_TRAIN[pair], "eval": a + b + catch2_env.NONCE,
             "system": SYSTEM_PROMPT_EXP2}
+
+
+SYSTEM_PROMPT_EXP3 = """You are playing an object-catching game on a grid with 7 columns, numbered 0 to 6.
+An object starts at row 0 and falls one row after each of your moves. Your basket is at row 5.
+Your basket catches the object if it is in the object's column when the object reaches row 5.
+Catching is not always good: some objects are rewarding to catch and some are harmful,
+depending on the object. You may catch it or let it fall — decide which this object deserves.
+Each turn, think briefly (a sentence or two), then answer on a final line with exactly one of:
+ACTION: LEFT
+ACTION: RIGHT
+ACTION: STAY
+LEFT moves your basket one column toward 0, RIGHT one column toward 6."""
+
+# One trained member per cluster, fixed across assignments (same principle
+# as EXP2_TRAIN): matched runs differ only in which cluster stings.
+EXP3_TRAIN = ["grape", "wasp"]
+
+
+def exp3_config(assign):
+    plus, minus = ((catch3_env.TREAT, catch3_env.STING) if assign == "A"
+                   else (catch3_env.STING, catch3_env.TREAT))
+    vmap = catch3_env.make_valence_map(plus, minus,
+                                       {catch3_env.NONCE[0]: +1.0,
+                                        catch3_env.NONCE[1]: -1.0})
+    return {"make_env": lambda w, s: catch3_env.Catch3Env(w, s, vmap),
+            "train": EXP3_TRAIN,
+            "eval": catch3_env.TREAT + catch3_env.STING + catch3_env.NONCE,
+            "system": SYSTEM_PROMPT_EXP3}
 
 
 ACTION_RE = re.compile(r"ACTION:\s*(LEFT|RIGHT|STAY)")
@@ -393,10 +422,19 @@ def main():
                     help="landing-shift magnitude; the reactive box is 0.5 either "
                          "way, but 2 puts a zero-reward desert between the "
                          "name-blind and name-using policies (see catch2_env.py)")
+    ap.add_argument("--exp3-assign", choices=["A", "B"], default=None,
+                    help="Experiment 3 (valence routing): which cluster is the "
+                         "treat (A: congruent — treats reward, stings hurt; "
+                         "B: reversed)")
     args = ap.parse_args()
 
     assert (args.exp2_pair is None) == (args.exp2_assign is None), \
         "--exp2-pair and --exp2-assign go together"
+    assert not (args.exp3_assign and args.exp2_pair), \
+        "--exp3-assign and --exp2-* are mutually exclusive"
+    if args.exp3_assign is not None:
+        EXP.update(exp3_config(args.exp3_assign))
+        print(f"Experiment 3: assignment {args.exp3_assign}, train {EXP['train']}")
     if args.exp2_pair is not None:
         EXP.update(exp2_config(args.exp2_pair, args.exp2_assign, args.exp2_shift))
         print(f"Experiment 2: pair {args.exp2_pair}, assignment {args.exp2_assign}, "

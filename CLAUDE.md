@@ -27,6 +27,8 @@ uv run python train.py --steps 100    # train (logs → runs/log.jsonl, ckpt →
 uv run python train.py --eval         # greedy catch-rate table incl. banana (base model)
 uv run python train.py --eval runs/ckpt-0100   # same, from a checkpoint
 uv run python train.py --exp2-pair 1 --exp2-assign A --steps 100   # Experiment 2: pair-1 clusters, assignment A (second cluster shifts); --eval takes the same flags
+uv run python catch3_env.py           # Exp 3 (valence) acceptance test: name-blind <=0.05, oracle >=0.45
+uv run python train.py --exp3-assign A --steps 400 --ent-bonus 0.02   # Experiment 3: valence routing (A congruent / B reversed)
 ```
 
 There is no test suite or linter; `--check-mask` and the env self-test are the
@@ -146,6 +148,15 @@ McNemar between any two checkpoints).
   1.000).** Remaining before the fleet: finalize cluster word lists
   (embedding validation), wire word/assignment configs into train.py, pilot
   run on the studio to size G against sparser early reward.
+- **Experiment 3 (built, runs after the Exp 2 queue): valence routing** —
+  `catch3_env.py`, physics identical for all words, reward ±1 keyed to
+  name-cluster (`--exp3-assign A|B` counterbalances which cluster stings).
+  Word lists pend the Exp 3 embedding validation. Free extra measurements:
+  avoidance onset lag per assignment (congruence-accelerated value
+  learning), unambiguous turn-1 move-away signature. Later rungs on the
+  same ladder: context-gated value (prompt sentence flips a trained
+  valence — instruction-vs-weights arbitration), one-shot value rewrite
+  (taste-aversion analogue), curiosity bonus replacing uniform entropy.
 - Later: `gym_env.py` — a Gymnasium adapter (text-serialized state vectors,
   action-repeat so the horizon stays LLM-sized, no vision). CartPole first as
   validation that 0.6B can control real physics through text at all, then

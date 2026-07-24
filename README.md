@@ -304,6 +304,46 @@ nonce words (cromlet, torgim). Next: a pilot run to size G against the
 sparser early reward (a reactive policy earns ~0.5 here, so
 shifted-cluster groups will be all-fail more often than v1's).
 
+### Experiment 3 (built, queued): valence routing — utility through the lexicon
+
+Experiment 2 varies *physics* and keeps value constant. Experiment 3
+(`catch3_env.py`) inverts that, which is the child's version of the
+problem: a bee arcs through the air much like a grape, but you want
+exactly one of them in your hand. Every object falls identically and
+observably — tracking skill is value-neutral — and the ONLY thing the
+name determines is utility: catching a treat-cluster word pays +1, a
+sting-cluster word −1, missing pays 0. The box logic transfers cleanly:
+any name-blind policy behaves identically on both clusters and nets
+exactly 0 on a balanced mix; catch-treats-dodge-stings nets 0.5
+(acceptance test: PASS, name-blind +0.000 / oracle +0.500). Counterbalance
+as ever: in assignment A the stings sting (congruent — and valence is the
+*strongest* prior text has; the corpus is thin on tangerine drift but
+saturated with wasp stings); in B the grapes sting and the wasps are
+treats — the harshest prior-vs-reward fight this rig can stage. Train on
+one word per cluster (`--exp3-assign A|B`), battery = held-out siblings +
+nonces, same four-way outcome table as Exp 2. Two bonus measurements come
+free: **avoidance onset lag** (avoid-bindings only get gradient when a
+sting is actually caught — "how many stings does it take?" per assignment
+measures how congruence accelerates value learning, the taste-aversion
+question at gradient speed), and the **turn-1 signature is unambiguous
+here** (moving *away* from an aligned object is a one-action tell no
+tracking story explains).
+
+Further rungs on the same ladder (each reuses the battery+counterbalance
+instrument, moving from "how things move" to "what things are worth" to
+"who's telling you"):
+
+- **Context-gated value** — a single prompt sentence flips a trained
+  valence ("today the {word} is spoiled/safe"); measures instruction-vs-
+  weights arbitration: how many turns of consolidated habit does one
+  sentence override, and does the override transfer to siblings?
+- **One-shot value rewrite** — the taste-aversion analogue: after
+  training, a handful of large-negative episodes on one treat word; how
+  fast does avoidance install, and does it spread through the cluster?
+- **Curiosity-directed exploration** — replace the uniform entropy bonus
+  with an ignorance-weighted signal; the entropy bonus buys lottery
+  tickets everywhere, a curiosity bonus buys them where the mystery is.
+
 Other cheap experiments once the loop works:
 - ~~**Is the CoT load-bearing?**~~ Answered incidentally by run 3: ckpt-0300
   catches at 0.86–0.98 with literally empty `<think>` blocks. For this task,

@@ -340,6 +340,22 @@ the reasoning was decoration.
   sampled positions; the sampler is untouched, so the on-policy invariant
   holds) to sustain exploration pressure while the name accumulates
   credit.
+- **Experiment 3 — valence routing.** The same instrument moved from
+  physics to utility: every object falls identically and observably, and
+  the name determines only whether catching pays +1 or −1. Any name-blind
+  policy nets exactly 0 on a balanced mix; catch-treats-dodge-stings nets
+  0.5. Counterbalanced as before — and because valence is the densest
+  prior text carries, the incongruent assignment (grapes sting, wasps
+  reward) is the strongest prior-vs-reward conflict this design can
+  stage. Two free measurements: avoidance onset lag (negative bindings
+  only receive gradient when a sting is actually caught, so
+  episodes-to-avoidance per assignment quantifies congruence
+  acceleration — a taste-aversion analogue at gradient speed), and a
+  one-action turn-1 signature (moving away from an aligned object).
+  Planned follow-ons on the same ladder: context-gated value (a prompt
+  sentence flipping a trained valence — instruction-vs-weights
+  arbitration), one-shot value rewrite, and curiosity-weighted
+  exploration replacing the uniform entropy bonus.
 - **No-prior baseline:** a small policy network on raw state, trained with
   the identical loss — it learns the task easily and cannot transfer by
   construction. (The nonce-name and shuffled-pairing controls formerly
