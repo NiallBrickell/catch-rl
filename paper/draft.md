@@ -323,7 +323,16 @@ the reasoning was decoration.
   training run: scripted reactive ceiling ≤0.5 while the scripted
   name-aware ceiling stays ≥0.9. Run 3 is the demonstration of what
   happens otherwise: if reactive play reaches the reward, RL finds it,
-  and the experiment silently stops being about language.
+  and the experiment silently stops being about language. A first 400-step
+  Exp 2 run then surfaced a **fourth ingredient — the gap must be
+  reachable**: at shift magnitude 2 the behavior between the name-blind
+  optimum and the name-using one earns exactly zero, and exploration never
+  crossed that desert (the trained shifted word sat at 0.11 at step 400
+  while every straight-landing word, nonce included, cleared 0.7 — a
+  perfect name-blind tracker, boxed as designed but unable to escape).
+  Magnitude 1 preserves the identical 0.5 reactive box while placing the
+  name-using policy one action-noise step from the reactive one; magnitude
+  2 becomes a curriculum target once binding exists at 1.
 - **No-prior baseline:** a small policy network on raw state, trained with
   the identical loss — it learns the task easily and cannot transfer by
   construction. (The nonce-name and shuffled-pairing controls formerly

@@ -31,7 +31,14 @@ import random
 WIDTH = 7    # columns 0..6
 BOTTOM = 5   # the basket's row; the object lands when it reaches this row
 TURNS = 5    # decision turns per episode (object falls rows 0 -> 5)
-SHIFT = 2    # landing shift, applied after the final action
+SHIFT = 2    # default landing shift, applied after the final action.
+# Magnitude matters for LEARNABILITY, not for the box: the reactive ceiling
+# is 0.5 at any magnitude >= 1 (the basket must match the landing column
+# exactly), but at shift 2 the behavior between the name-blind optimum
+# (stand at c) and the name-using one (stand at c+2) earns ZERO reward --
+# an exploration desert run 4 never crossed in 400 steps. Shift 1 keeps the
+# identical reward box while placing the name-using behavior one action-
+# noise step from the reactive policy.
 
 # Clusters validated against Qwen3-0.6B's input-embedding space (within-
 # cluster cosine must clearly beat cross-cluster for every word; no shared
@@ -48,12 +55,12 @@ PAIR2 = (["missile", "bullet", "jet"], ["tortoise", "turtle", "worm"])
 NONCE = ["cromlet", "torgim"]
 
 
-def make_shift_map(zero_cluster, shift_cluster, nonce_shifts=None):
+def make_shift_map(zero_cluster, shift_cluster, nonce_shifts=None, shift=SHIFT):
     """One counterbalanced assignment: every word in `shift_cluster` lands
-    SHIFT columns right of where it fell; `zero_cluster` lands true. Flip
+    `shift` columns right of where it fell; `zero_cluster` lands true. Flip
     the two arguments to build the matched reversed run."""
     m = {w: 0 for w in zero_cluster}
-    m.update({w: SHIFT for w in shift_cluster})
+    m.update({w: shift for w in shift_cluster})
     m.update(nonce_shifts or {})
     return m
 
@@ -72,15 +79,17 @@ class Catch2Env:
         self.word = word
         self.seed = seed
         self.shift = shift_map[word]
+        self.max_shift = max(shift_map.values())  # bounds spawns for ALL words,
+        # so spawn distributions are identical across clusters
 
     def reset(self):
         rng = random.Random(self.seed)
         # Spawn so every landing hypothesis is honest and reachable: the
-        # object's column keeps col+SHIFT on the grid, and the basket starts
-        # within 3 of the object, so both col and col+SHIFT are inside the
-        # 5 moves the episode allows. Without this, feasibility would differ
-        # between clusters and confound the reward gap.
-        self.obj_col = rng.randrange(0, WIDTH - SHIFT)
+        # object's column keeps col+max_shift on the grid, and the basket
+        # starts within 3 of the object, so both col and col+max_shift are
+        # inside the 5 moves the episode allows. Without this, feasibility
+        # would differ between clusters and confound the reward gap.
+        self.obj_col = rng.randrange(0, WIDTH - self.max_shift)
         self.basket_col = rng.randrange(max(0, self.obj_col - 3),
                                         min(WIDTH - 1, self.obj_col + 3) + 1)
         self.obj_row = 0
@@ -125,19 +134,25 @@ if __name__ == "__main__":
     # Reactive = chase the observed column (the policy run 3 converged to).
     # Oracle = chase observed column + the word's true shift.
     words = PAIR1[0] + PAIR1[1]
-    shift_map = make_shift_map(PAIR1[0], PAIR1[1])
     N = 500
-    print(f"{'word':10s} {'reactive':>9s} {'oracle':>9s}")
-    tot_r = tot_o = 0.0
-    for w in words:
-        r = sum(_scripted(Catch2Env(w, s, shift_map), lambda e: e.obj_col)
-                for s in range(N)) / N
-        o = sum(_scripted(Catch2Env(w, s, shift_map), lambda e: e.obj_col + e.shift)
-                for s in range(N)) / N
-        tot_r += r / len(words)
-        tot_o += o / len(words)
-        print(f"{w:10s} {r:9.3f} {o:9.3f}")
-    print(f"{'OVERALL':10s} {tot_r:9.3f} {tot_o:9.3f}")
-    ok = tot_r <= 0.5 and tot_o >= 0.9
-    print("ACCEPTANCE:", "PASS" if ok else "FAIL",
-          f"(need reactive <= 0.5, oracle >= 0.9)")
+    all_ok = True
+    for mag in (1, 2):
+        shift_map = make_shift_map(PAIR1[0], PAIR1[1], shift=mag)
+        print(f"-- shift magnitude {mag} --")
+        print(f"{'word':10s} {'reactive':>9s} {'oracle':>9s}")
+        tot_r = tot_o = 0.0
+        for w in words:
+            r = sum(_scripted(Catch2Env(w, s, shift_map), lambda e: e.obj_col)
+                    for s in range(N)) / N
+            o = sum(_scripted(Catch2Env(w, s, shift_map), lambda e: e.obj_col + e.shift)
+                    for s in range(N)) / N
+            tot_r += r / len(words)
+            tot_o += o / len(words)
+            print(f"{w:10s} {r:9.3f} {o:9.3f}")
+        print(f"{'OVERALL':10s} {tot_r:9.3f} {tot_o:9.3f}")
+        ok = tot_r <= 0.5 and tot_o >= 0.9
+        all_ok = all_ok and ok
+        print("ACCEPTANCE:", "PASS" if ok else "FAIL",
+              f"(need reactive <= 0.5, oracle >= 0.9)")
+    if not all_ok:
+        raise SystemExit(1)

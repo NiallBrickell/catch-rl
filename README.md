@@ -256,6 +256,18 @@ reactive ceiling must sit well below the scripted name-aware ceiling
 (target: ≤0.5 vs ≥0.9). If reactive play can reach the reward, the prior is
 dead weight and the experiment tests nothing.
 
+**Fourth ingredient, learned from run 4: the name-using behavior must be
+reachable by exploration from the name-blind optimum.** A reward gap is
+necessary but not sufficient — at shift magnitude 2, the behavior between
+"stand at c" (the reactive optimum) and "stand at c+2" (the name-using
+one) earns exactly zero, and 400 steps of temperature-1 exploration never
+crossed that desert: the trained shifted word ended at 0.11 while every
+straight word cleared 0.7. Shift magnitude 1 keeps the identical 0.5
+reactive box (the basket must match the landing column exactly; there is
+no hedge) while placing the name-using policy one action-noise step away.
+`--exp2-shift` selects the magnitude; if binding forms at 1, magnitude 2
+becomes a curriculum question, not a wall.
+
 **Status: the v2 environment exists and passes.** `catch2_env.py`
 implements the final-fall shift (object drops straight through every
 observed row, then lands `+2` columns keyed to its name-cluster, after the
@@ -330,6 +342,21 @@ Three interactive marimo notebooks accompany the code
   group-size toggles that demonstrate why each piece exists.
 
 ## Lab notes
+
+**2026-07-24 — run 4 (Exp 2, pair 1, assignment A, shift 2, 400 steps,
+2×G=8).** The box held all the way to convergence pressure — and revealed
+its own flaw. Battery at ckpt-0400 (greedy, n=100): rock 0.89, stone 0.72,
+granite 0.72, cromlet 0.72 vs butterfly 0.11, feather 0.11, moth 0.10,
+torgim 0.06. The policy became an excellent name-blind tracker (nonce =
+held-out real words at 0.72, exactly the signature) and never once found
+the +2 behavior — *including on the trained shifted word*, 400 steps of
+reward available and untouched. Training curve confirms: rock's sampled
+reward 0.23 → 0.69 while butterfly pinned at 0.11–0.15 (one transient
+flicker to ~0.25 near step 110–130 that died). One intriguing wrinkle:
+rock (0.89) beat its held-out siblings (0.72, ~3σ) — a possible trained-
+word-specific effect worth revisiting once any binding exists to compare
+against. Diagnosis: exploration desert, not representational failure — see
+the fourth ingredient above. Next: run 5, identical but shift 1.
 
 **2026-07-23 — Experiment 2 pilot (pair 1, assignment A: rock-cluster lands
 true, butterfly-cluster shifts +2; 100 steps, 2×G=8, M4 Max).** Purpose was

@@ -55,11 +55,11 @@ EXP = {"make_env": CatchEnv, "train": TRAIN_FRUITS, "eval": EVAL_FRUITS,
 EXP2_TRAIN = {1: ["rock", "butterfly"], 2: ["bullet", "tortoise"]}
 
 
-def exp2_config(pair, assign):
+def exp2_config(pair, assign, shift=catch2_env.SHIFT):
     a, b = catch2_env.PAIR1 if pair == 1 else catch2_env.PAIR2
     zero, shifted = (a, b) if assign == "A" else (b, a)
     smap = catch2_env.make_shift_map(zero, shifted,
-                                     {"cromlet": 0, "torgim": catch2_env.SHIFT})
+                                     {"cromlet": 0, "torgim": shift}, shift=shift)
     return {"make_env": lambda w, s: catch2_env.Catch2Env(w, s, smap),
             "train": EXP2_TRAIN[pair], "eval": a + b + catch2_env.NONCE,
             "system": SYSTEM_PROMPT_EXP2}
@@ -364,14 +364,18 @@ def main():
     ap.add_argument("--exp2-assign", choices=["A", "B"], default=None,
                     help="counterbalanced assignment: which cluster gets the "
                          "landing shift (A: pair's second cluster, B: first)")
+    ap.add_argument("--exp2-shift", type=int, choices=[1, 2], default=catch2_env.SHIFT,
+                    help="landing-shift magnitude; the reactive box is 0.5 either "
+                         "way, but 2 puts a zero-reward desert between the "
+                         "name-blind and name-using policies (see catch2_env.py)")
     args = ap.parse_args()
 
     assert (args.exp2_pair is None) == (args.exp2_assign is None), \
         "--exp2-pair and --exp2-assign go together"
     if args.exp2_pair is not None:
-        EXP.update(exp2_config(args.exp2_pair, args.exp2_assign))
+        EXP.update(exp2_config(args.exp2_pair, args.exp2_assign, args.exp2_shift))
         print(f"Experiment 2: pair {args.exp2_pair}, assignment {args.exp2_assign}, "
-              f"train {EXP['train']}")
+              f"shift {args.exp2_shift}, train {EXP['train']}")
 
     device = ("cuda" if torch.cuda.is_available()
               else "mps" if torch.backends.mps.is_available() else "cpu")
