@@ -123,6 +123,11 @@ McNemar between any two checkpoints).
   which had documented the failure family.)
 - `runs/` (logs, model checkpoints) is gitignored — record notable results by
   writing them into the README/commit messages, not by committing checkpoints.
+- **One model process at a time on the studio.** Training + a concurrent
+  eval (two resident models + fp32 logits buffers) exceeds 36GB, swap-locks
+  the machine hard enough to need a power cycle (2026-07-24, killed run 6
+  at step ~124). Queue evals behind training or run them before resuming —
+  never alongside.
 
 ## Roadmap
 
